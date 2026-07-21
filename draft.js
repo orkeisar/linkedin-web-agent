@@ -19,6 +19,30 @@ const Draft = (() => {
     log.scrollTop = log.scrollHeight;
   }
 
+  // Same guard as pipeline.js's pushUserTurn: merges into a trailing user
+  // turn instead of stacking a new one, so a request that got saved
+  // optimistically but never received its assistant reply (a failed call)
+  // can't leave conversationHistory ending on two consecutive user turns --
+  // which would break the strict alternation runDraft's message replay
+  // depends on.
+  function pushUserTurn(idea, content) {
+    const last = idea.conversationHistory[idea.conversationHistory.length - 1];
+    if (last && last.role === "user") {
+      last.content = `${last.content}\n\n${content}`;
+    } else {
+      idea.conversationHistory.push({ role: "user", content });
+    }
+  }
+
+  function setDraftPanelBusy(busy) {
+    const sendBtn = document.querySelector("#draft-chat-form button[type='submit']");
+    const input = document.getElementById("draft-chat-input");
+    const readyBtn = document.getElementById("draft-ready-btn");
+    if (sendBtn) sendBtn.disabled = busy;
+    if (input) input.disabled = busy;
+    if (readyBtn) readyBtn.disabled = busy;
+  }
+
   function cleanDraftText(text) {
     let cleaned = text.trim();
     cleaned = cleaned
@@ -138,11 +162,19 @@ const Draft = (() => {
       });
 
       const draftText = cleanDraftText(Api.extractText(response));
-      idea.draft = draftText;
-      idea.conversationHistory.push({ role: "assistant", content: draftText });
-      await AppStorage.saveIdea(idea);
+
+      // Re-fetch fresh right before writing, rather than reusing the `idea`
+      // read at the top of this function: a status change made elsewhere
+      // (e.g. "Mark Ready to Post", clicked while this call was in flight)
+      // would otherwise get silently clobbered by writing back the stale
+      // pre-call snapshot.
+      const current = await AppStorage.getIdea(ideaId);
+      if (!current) return;
+      current.draft = draftText;
+      current.conversationHistory.push({ role: "assistant", content: draftText });
+      await AppStorage.saveIdea(current);
       Pipeline.renderBoard();
-      if (Pipeline.getCurrentIdeaId() === ideaId) renderDraftingPanel(idea);
+      if (Pipeline.getCurrentIdeaId() === ideaId) renderDraftingPanel(current);
     } catch (err) {
       if (await App.handleAuthError(err, () => runDraft(ideaId))) return;
       if (Pipeline.getCurrentIdeaId() === ideaId) renderDraftingPanel(idea, { error: err.message });
@@ -154,7 +186,7 @@ const Draft = (() => {
     if (!idea) return;
 
     idea.status = "Drafting";
-    idea.conversationHistory.push({ role: "user", content: "Write the full post now." });
+    pushUserTurn(idea, "Write the full post now.");
     await AppStorage.saveIdea(idea);
     Pipeline.renderBoard();
     if (Pipeline.getCurrentIdeaId() === ideaId) renderDraftingPanel(idea, { loading: true });
@@ -226,7 +258,7 @@ const Draft = (() => {
     if (!text) return;
 
     const idea = await AppStorage.getIdea(ideaId);
-    idea.conversationHistory.push({ role: "user", content: text });
+    pushUserTurn(idea, text);
     input.value = "";
     await AppStorage.saveIdea(idea);
     renderChatLogInto("draft-chat-log", idea.conversationHistory);
@@ -234,11 +266,14 @@ const Draft = (() => {
     const statusEl = document.getElementById("draft-status");
     statusEl.textContent = "Revising…";
     statusEl.className = "status-pending";
+    setDraftPanelBusy(true);
 
     await runDraft(ideaId);
   }
 
   async function handleMarkReadyToPost(ideaId) {
+    const readyBtn = document.getElementById("draft-ready-btn");
+    if (readyBtn) readyBtn.disabled = true;
     const idea = await AppStorage.getIdea(ideaId);
     if (!idea) return;
     idea.status = "Ready to Post";
@@ -281,6 +316,8 @@ const Draft = (() => {
   }
 
   async function handleMarkPosted(ideaId) {
+    const postedBtn = document.getElementById("ready-mark-posted-btn");
+    if (postedBtn) postedBtn.disabled = true;
     const idea = await AppStorage.getIdea(ideaId);
     if (!idea) return;
     idea.status = "Posted";

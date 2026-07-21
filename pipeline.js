@@ -20,6 +20,22 @@ const Pipeline = (() => {
       .trim();
   }
 
+  // Appends a user turn, but merges into the trailing turn instead of
+  // pushing a new one if the history already ends on "user" -- which
+  // happens when a previous call's request was saved optimistically but
+  // never got its matching assistant reply (e.g. the API call failed).
+  // Anthropic requires strict user/assistant alternation, so stacking two
+  // consecutive user turns would break every future call replaying this
+  // history; merging keeps both pieces of context without losing either.
+  function pushUserTurn(idea, content) {
+    const last = idea.conversationHistory[idea.conversationHistory.length - 1];
+    if (last && last.role === "user") {
+      last.content = `${last.content}\n\n${content}`;
+    } else {
+      idea.conversationHistory.push({ role: "user", content });
+    }
+  }
+
   function formatQuestions(questions) {
     return questions.length === 1 ? questions[0] : questions.map((q, i) => `${i + 1}. ${q}`).join("\n");
   }
@@ -298,7 +314,7 @@ const Pipeline = (() => {
     if (!text) return;
 
     const idea = await AppStorage.getIdea(ideaId);
-    idea.conversationHistory.push({ role: "user", content: text });
+    pushUserTurn(idea, text);
     input.value = "";
     await AppStorage.saveIdea(idea);
     renderChatLogInto("interview-chat-log", idea.conversationHistory);
@@ -469,7 +485,7 @@ const Pipeline = (() => {
     const idea = await AppStorage.getIdea(ideaId);
     applyInlineEditsToIdea(idea);
 
-    idea.conversationHistory.push({ role: "user", content: text });
+    pushUserTurn(idea, text);
     input.value = "";
     await AppStorage.saveIdea(idea);
     renderChatLogInto("prop-chat-log", idea.conversationHistory);
@@ -550,6 +566,7 @@ const Pipeline = (() => {
     statusEl.className = "status-success";
     document.getElementById("prop-angle-source").textContent = `Angle source: ${result.idea.angleSource}`;
     document.getElementById("prop-confirm-btn").disabled = true;
+    document.getElementById("prop-draft-btn").disabled = true;
     renderBoard();
 
     setTimeout(() => {
