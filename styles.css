@@ -79,6 +79,189 @@ button {
   color: #555;
 }
 
+/* Forms (admin + landing share these primitives) */
+
+input[type="text"],
+input[type="password"],
+textarea,
+select {
+  font: inherit;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  width: 100%;
+}
+
+textarea {
+  resize: vertical;
+}
+
+.field {
+  margin-bottom: 1.25rem;
+}
+
+.field label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.field-header label {
+  margin-bottom: 0;
+}
+
+.btn-secondary {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid #0a66c2;
+  border-radius: 6px;
+  background: #fff;
+  color: #0a66c2;
+  font-weight: 600;
+}
+
+.btn-primary {
+  padding: 0.6rem 1.25rem;
+  border: none;
+  border-radius: 6px;
+  background: #0a66c2;
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Admin: pillar blocks */
+
+#pillars-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.pillar-block {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 1rem;
+  background: #fff;
+}
+
+.pillar-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.pillar-block label {
+  display: block;
+  font-weight: 600;
+  margin-top: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.pillar-block label:first-of-type {
+  margin-top: 0;
+}
+
+.angles-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.angle-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.angle-row .angle-input {
+  flex: 1;
+}
+
+.remove-angle-btn {
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fff;
+  color: #555;
+  width: 2rem;
+  height: 2rem;
+  line-height: 1;
+}
+
+#add-pillar-btn,
+.add-angle-btn,
+.remove-pillar-btn {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid #0a66c2;
+  border-radius: 6px;
+  background: #fff;
+  color: #0a66c2;
+  font-weight: 600;
+}
+
+#generate-link-btn {
+  padding: 0.6rem 1.25rem;
+  border: none;
+  border-radius: 6px;
+  background: #0a66c2;
+  color: #fff;
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+/* Admin: generated link output */
+
+#link-output {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #ddd;
+}
+
+#link-output label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.link-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+#generated-link {
+  flex: 1;
+  background: #f0f0f0;
+}
+
+#copy-link-btn {
+  padding: 0.6rem 1.25rem;
+  border: none;
+  border-radius: 6px;
+  background: #0a66c2;
+  color: #fff;
+  font-weight: 600;
+}
+
+#link-copy-status {
+  min-height: 1.25em;
+  color: #14802f;
+  font-weight: 500;
+}
+
+.warning {
+  color: #9a6700;
+  background: #fff8e6;
+  border: 1px solid #f0d999;
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+
 /* Nav shell */
 
 #main-nav {

@@ -8,8 +8,42 @@
 </head>
 <body>
   <div id="app">
-    <h1>Admin — Link Generator</h1>
-    <p>Phase 1 scaffold — the pillar/strategy form and link generation land in Phase 2.</p>
+    <header>
+      <h1>Admin — Link Generator</h1>
+      <p>Set the content strategy for one person, generate their personalized link.</p>
+    </header>
+
+    <form id="admin-form">
+      <div class="field">
+        <label for="recipient-name">Recipient name (optional)</label>
+        <input type="text" id="recipient-name" placeholder="For a personalized greeting" />
+      </div>
+
+      <div class="field">
+        <label for="content-strategy-notes">Content strategy notes</label>
+        <textarea id="content-strategy-notes" rows="4" placeholder="Overall direction for this person"></textarea>
+      </div>
+
+      <div class="field">
+        <div class="field-header">
+          <label>Pillars</label>
+          <button type="button" id="add-pillar-btn">+ Add pillar</button>
+        </div>
+        <div id="pillars-container"></div>
+      </div>
+
+      <button type="submit" id="generate-link-btn">Generate link</button>
+    </form>
+
+    <div id="link-output" hidden>
+      <label for="generated-link">Shareable link</label>
+      <div class="link-row">
+        <input type="text" id="generated-link" readonly />
+        <button type="button" id="copy-link-btn">Copy</button>
+      </div>
+      <p id="link-copy-status" role="status" aria-live="polite"></p>
+      <p id="link-length-warning" class="warning" hidden></p>
+    </div>
   </div>
 
   <script src="linkConfig.js"></script>
