@@ -27,56 +27,28 @@ button {
   cursor: pointer;
 }
 
-/* Landing view / API key gate */
+/* Status messages (key test, chat, save — reused across the app) */
 
-#landing-view {
-  max-width: 480px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-#landing-view label {
-  font-weight: 600;
-}
-
-#api-key-input {
-  font: inherit;
-  padding: 0.6rem 0.75rem;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-}
-
-#test-connection-btn {
-  align-self: flex-start;
-  padding: 0.6rem 1.25rem;
-  border: none;
-  border-radius: 6px;
-  background: #0a66c2;
-  color: #fff;
-  font-weight: 600;
-}
-
-#test-connection-btn:disabled {
-  background: #7fa8d4;
-  cursor: not-allowed;
-}
-
-#connection-status {
+[role="status"] {
   min-height: 1.25em;
   font-weight: 500;
 }
 
-#connection-status.status-success {
+.status-success {
   color: #14802f;
 }
 
-#connection-status.status-error {
+.status-error {
   color: #c5221f;
 }
 
-#connection-status.status-pending {
+.status-pending {
   color: #555;
+}
+
+.btn-primary:disabled {
+  background: #7fa8d4;
+  cursor: not-allowed;
 }
 
 /* Forms (admin + landing share these primitives) */
@@ -184,7 +156,8 @@ textarea {
   flex: 1;
 }
 
-.remove-angle-btn {
+.remove-angle-btn,
+.remove-repeatable-btn {
   border: 1px solid #ccc;
   border-radius: 6px;
   background: #fff;
@@ -192,6 +165,7 @@ textarea {
   width: 2rem;
   height: 2rem;
   line-height: 1;
+  flex-shrink: 0;
 }
 
 #add-pillar-btn,
@@ -260,6 +234,79 @@ textarea {
   border: 1px solid #f0d999;
   border-radius: 6px;
   padding: 0.75rem;
+}
+
+/* Onboarding wizard */
+
+#onboarding-view {
+  max-width: 640px;
+}
+
+#onboarding-step-indicator {
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 1rem;
+}
+
+.step-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.repeatable-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+}
+
+.repeatable-row .repeatable-input {
+  flex: 1;
+}
+
+/* Onboarding: guided conversation chat */
+
+.chat-log {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fff;
+  padding: 1rem;
+  max-height: 400px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.chat-bubble {
+  max-width: 80%;
+  padding: 0.6rem 0.9rem;
+  border-radius: 10px;
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+
+.chat-assistant {
+  align-self: flex-start;
+  background: #f0f0f0;
+}
+
+.chat-user {
+  align-self: flex-end;
+  background: #0a66c2;
+  color: #fff;
+}
+
+.chat-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.chat-form input {
+  flex: 1;
 }
 
 /* Nav shell */

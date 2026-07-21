@@ -1,22 +1,11 @@
-// Bootstrap + view routing for index.html: API key gate on first load,
-// then nav routing between placeholder views. First-load `c` param
-// decoding (linkConfig.js) lands in Phase 3.
+// Bootstrap + view routing for index.html: decode the `c` link-config
+// param on first load, seed pillars, strip the URL, then route to the
+// onboarding wizard (if no voiceProfile yet) or straight to the nav shell.
 
-(function () {
-  function showLanding() {
-    document.getElementById("landing-view").hidden = false;
-    document.getElementById("app-shell").hidden = true;
-  }
-
+const App = (() => {
   function showAppShell() {
-    document.getElementById("landing-view").hidden = true;
+    document.getElementById("onboarding-view").hidden = true;
     document.getElementById("app-shell").hidden = false;
-  }
-
-  function setStatus(message, type) {
-    const statusEl = document.getElementById("connection-status");
-    statusEl.textContent = message;
-    statusEl.className = type ? `status-${type}` : "";
   }
 
   function switchView(viewName) {
@@ -28,44 +17,46 @@
     });
   }
 
-  async function handleTestConnection() {
-    const input = document.getElementById("api-key-input");
-    const button = document.getElementById("test-connection-btn");
-    const apiKey = input.value.trim();
-
-    if (!apiKey) {
-      setStatus("Enter an API key first.", "error");
-      return;
-    }
-
-    button.disabled = true;
-    setStatus("Testing connection…", "pending");
-
-    try {
-      await Api.testConnection({ apiKey, model: AppStorage.getModelId() });
-      AppStorage.setApiKey(apiKey);
-      setStatus("Connected — key saved.", "success");
-      setTimeout(showAppShell, 1500);
-    } catch (err) {
-      setStatus(err.message, "error");
-    } finally {
-      button.disabled = false;
-    }
+  function isValidPillarsConfig(config) {
+    return !!config && typeof config === "object" && Array.isArray(config.pillars);
   }
 
-  function init() {
-    document.getElementById("test-connection-btn").addEventListener("click", handleTestConnection);
+  async function seedPillarsFromLink() {
+    const params = new URLSearchParams(window.location.search);
+    const encoded = params.get(LinkConfig.QUERY_PARAM);
+    if (!encoded) return;
+
+    const decoded = LinkConfig.decodeConfig(encoded);
+    if (isValidPillarsConfig(decoded)) {
+      await AppStorage.savePillars(decoded);
+    }
+
+    const url = new URL(window.location.href);
+    url.searchParams.delete(LinkConfig.QUERY_PARAM);
+    history.replaceState({}, "", url.toString());
+  }
+
+  async function init() {
     document.querySelectorAll(".nav-link").forEach((btn) => {
       btn.addEventListener("click", () => switchView(btn.dataset.view));
     });
     switchView("board");
 
-    if (AppStorage.getApiKey()) {
-      showAppShell();
-    } else {
-      showLanding();
+    try {
+      await seedPillarsFromLink();
+      const voiceProfile = await AppStorage.getVoiceProfile();
+      if (voiceProfile) {
+        showAppShell();
+      } else {
+        const pillars = (await AppStorage.getPillars()) || AppStorage.emptyPillars();
+        Onboarding.start(pillars);
+      }
+    } catch (err) {
+      Onboarding.start(AppStorage.emptyPillars());
     }
   }
 
   document.addEventListener("DOMContentLoaded", init);
+
+  return { showAppShell, switchView };
 })();

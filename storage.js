@@ -1,5 +1,5 @@
 // localStorage + IndexedDB wrapper: apiKey/modelId, pillars, voiceProfile,
-// learnedGuidelines, ideas. IndexedDB stores land in Phase 3+.
+// learnedGuidelines, ideas. learnedGuidelines/ideas stores land in Phase 4+.
 
 const AppStorage = (() => {
   const API_KEY_STORAGE_KEY = "apiKey";
@@ -26,6 +26,76 @@ const AppStorage = (() => {
     localStorage.setItem(MODEL_ID_STORAGE_KEY, modelId);
   }
 
+  // --- IndexedDB: pillars + voiceProfile (single record each) ---
+
+  const DB_NAME = "linkedinStoryPipeline";
+  const DB_VERSION = 1;
+  const PILLARS_STORE = "pillars";
+  const VOICE_PROFILE_STORE = "voiceProfile";
+  const SINGLETON_KEY = "current";
+
+  let dbPromise = null;
+
+  function openDb() {
+    if (!dbPromise) {
+      dbPromise = new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onupgradeneeded = (event) => {
+          const db = event.target.result;
+          if (!db.objectStoreNames.contains(PILLARS_STORE)) {
+            db.createObjectStore(PILLARS_STORE);
+          }
+          if (!db.objectStoreNames.contains(VOICE_PROFILE_STORE)) {
+            db.createObjectStore(VOICE_PROFILE_STORE);
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+    return dbPromise;
+  }
+
+  async function idbGet(storeName, key) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, "readonly");
+      const req = tx.objectStore(storeName).get(key);
+      req.onsuccess = () => resolve(req.result ?? null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function idbPut(storeName, key, value) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, "readwrite");
+      tx.objectStore(storeName).put(value, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  function emptyPillars() {
+    return { recipientName: "", contentStrategyNotes: "", pillars: [] };
+  }
+
+  function getPillars() {
+    return idbGet(PILLARS_STORE, SINGLETON_KEY);
+  }
+
+  function savePillars(pillarsConfig) {
+    return idbPut(PILLARS_STORE, SINGLETON_KEY, pillarsConfig);
+  }
+
+  function getVoiceProfile() {
+    return idbGet(VOICE_PROFILE_STORE, SINGLETON_KEY);
+  }
+
+  function saveVoiceProfile(voiceProfile) {
+    return idbPut(VOICE_PROFILE_STORE, SINGLETON_KEY, voiceProfile);
+  }
+
   return {
     DEFAULT_MODEL_ID,
     getApiKey,
@@ -33,5 +103,10 @@ const AppStorage = (() => {
     clearApiKey,
     getModelId,
     setModelId,
+    emptyPillars,
+    getPillars,
+    savePillars,
+    getVoiceProfile,
+    saveVoiceProfile,
   };
 })();

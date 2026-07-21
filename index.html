@@ -12,22 +12,10 @@
       <h1>LinkedIn Story Pipeline</h1>
     </header>
 
-    <section id="landing-view">
-      <p>
-        Paste your Anthropic API key to get started. It's stored only in
-        this browser's localStorage, and sent only to Anthropic's API.
-      </p>
-      <label for="api-key-input">Anthropic API key</label>
-      <input
-        type="password"
-        id="api-key-input"
-        placeholder="sk-ant-..."
-        autocomplete="off"
-        spellcheck="false"
-      />
-      <button id="test-connection-btn" type="button">Test connection</button>
-      <p id="connection-status" role="status" aria-live="polite"></p>
-    </section>
+    <div id="onboarding-view" hidden>
+      <p id="onboarding-step-indicator"></p>
+      <div id="onboarding-step-container"></div>
+    </div>
 
     <div id="app-shell" hidden>
       <nav id="main-nav">

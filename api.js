@@ -5,7 +5,7 @@ const Api = (() => {
   const API_URL = "https://api.anthropic.com/v1/messages";
   const ANTHROPIC_VERSION = "2023-06-01";
 
-  async function sendMessage({ apiKey, model, messages, maxTokens }) {
+  async function sendMessage({ apiKey, model, messages, maxTokens, system }) {
     let response;
     try {
       response = await fetch(API_URL, {
@@ -20,6 +20,7 @@ const Api = (() => {
           model,
           max_tokens: maxTokens,
           messages,
+          ...(system ? { system } : {}),
         }),
       });
     } catch (err) {
@@ -50,5 +51,14 @@ const Api = (() => {
     });
   }
 
-  return { sendMessage, testConnection };
+  function extractText(response) {
+    if (!response || !Array.isArray(response.content)) return "";
+    return response.content
+      .filter((block) => block.type === "text")
+      .map((block) => block.text)
+      .join("\n")
+      .trim();
+  }
+
+  return { sendMessage, testConnection, extractText };
 })();
