@@ -8,8 +8,43 @@
 </head>
 <body>
   <div id="app">
-    <h1>LinkedIn Story Pipeline</h1>
-    <p>Phase 1 scaffold — onboarding, board, drafting, and settings land in later phases.</p>
+    <header>
+      <h1>LinkedIn Story Pipeline</h1>
+    </header>
+
+    <section id="landing-view">
+      <p>
+        Paste your Anthropic API key to get started. It's stored only in
+        this browser's localStorage, and sent only to Anthropic's API.
+      </p>
+      <label for="api-key-input">Anthropic API key</label>
+      <input
+        type="password"
+        id="api-key-input"
+        placeholder="sk-ant-..."
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <button id="test-connection-btn" type="button">Test connection</button>
+      <p id="connection-status" role="status" aria-live="polite"></p>
+    </section>
+
+    <div id="app-shell" hidden>
+      <nav id="main-nav">
+        <button class="nav-link" data-view="board" type="button">Board</button>
+        <button class="nav-link" data-view="settings" type="button">Settings</button>
+      </nav>
+      <main id="view-container">
+        <section id="view-board">
+          <h2>Board</h2>
+          <p>Coming in a later phase.</p>
+        </section>
+        <section id="view-settings" hidden>
+          <h2>Settings</h2>
+          <p>Coming in a later phase.</p>
+        </section>
+      </main>
+    </div>
   </div>
 
   <script src="linkConfig.js"></script>

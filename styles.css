@@ -17,3 +17,83 @@ body {
   margin: 0 auto;
   padding: 2rem 1rem;
 }
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Landing view / API key gate */
+
+#landing-view {
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+#landing-view label {
+  font-weight: 600;
+}
+
+#api-key-input {
+  font: inherit;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+#test-connection-btn {
+  align-self: flex-start;
+  padding: 0.6rem 1.25rem;
+  border: none;
+  border-radius: 6px;
+  background: #0a66c2;
+  color: #fff;
+  font-weight: 600;
+}
+
+#test-connection-btn:disabled {
+  background: #7fa8d4;
+  cursor: not-allowed;
+}
+
+#connection-status {
+  min-height: 1.25em;
+  font-weight: 500;
+}
+
+#connection-status.status-success {
+  color: #14802f;
+}
+
+#connection-status.status-error {
+  color: #c5221f;
+}
+
+#connection-status.status-pending {
+  color: #555;
+}
+
+/* Nav shell */
+
+#main-nav {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid #ddd;
+  margin-bottom: 1.5rem;
+}
+
+.nav-link {
+  padding: 0.6rem 1rem;
+  border: none;
+  background: none;
+  border-bottom: 2px solid transparent;
+  font-weight: 600;
+  color: #555;
+}
+
+.nav-link.active {
+  color: #0a66c2;
+  border-bottom-color: #0a66c2;
+}
