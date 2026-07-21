@@ -2,29 +2,32 @@
    Shared styles for index.html and admin.html. Filled in phase by phase. */
 
 :root {
-  --bg: #0b0d12;
-  --surface: #14171e;
-  --surface-2: #1a1e27;
-  --surface-hover: #20242f;
-  --border: #262b36;
-  --border-strong: #363c4a;
-  --text: #e8eaed;
-  --text-muted: #9aa0ab;
-  --text-faint: #6b7280;
-  --accent: #5b8cff;
-  --accent-hover: #7ba3ff;
-  --accent-soft: rgba(91, 140, 255, 0.12);
-  --accent-soft-border: rgba(91, 140, 255, 0.35);
-  --on-accent: #0b0d12;
-  --success: #3ddc84;
-  --success-bg: rgba(61, 220, 132, 0.1);
-  --error: #ff6b6b;
-  --error-bg: rgba(255, 107, 107, 0.1);
-  --warning: #ffb84d;
-  --warning-bg: rgba(255, 184, 77, 0.08);
-  --warning-border: rgba(255, 184, 77, 0.3);
+  --bg: #f6f7fb;
+  --surface: #ffffff;
+  --surface-2: #f1f3f8;
+  --surface-hover: #eaecf3;
+  --border: #e3e6ed;
+  --border-strong: #d3d7e0;
+  --text: #12131a;
+  --text-muted: #667085;
+  --text-faint: #98a0b3;
+  --accent: #3d5afe;
+  --accent-hover: #2e46d9;
+  --accent-soft: rgba(61, 90, 254, 0.08);
+  --accent-soft-border: rgba(61, 90, 254, 0.25);
+  --on-accent: #ffffff;
+  --success: #17a35a;
+  --success-bg: rgba(23, 163, 90, 0.08);
+  --error: #e0362e;
+  --error-bg: rgba(224, 54, 46, 0.08);
+  --warning: #b6690a;
+  --warning-bg: rgba(182, 105, 10, 0.08);
+  --warning-border: rgba(182, 105, 10, 0.25);
   --radius: 8px;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+  --shadow-md: 0 8px 24px rgba(16, 24, 40, 0.08), 0 2px 6px rgba(16, 24, 40, 0.05);
+  --shadow-lg: 0 24px 60px rgba(16, 24, 40, 0.18);
 }
 
 * {
@@ -40,7 +43,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color: var(--text);
   background: var(--bg);
-  background-image: radial-gradient(circle at 20% 0%, rgba(91, 140, 255, 0.08), transparent 45%);
+  background-image: radial-gradient(circle at 20% 0%, rgba(61, 90, 254, 0.06), transparent 45%);
   background-attachment: fixed;
 }
 
@@ -188,6 +191,7 @@ textarea {
   border-radius: var(--radius);
   padding: 1rem;
   background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .pillar-block-header {
@@ -352,6 +356,7 @@ textarea {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
+  box-shadow: var(--shadow-sm);
   padding: 1rem;
   max-height: 400px;
   overflow-y: auto;
@@ -413,7 +418,7 @@ textarea {
 
 .board-column {
   min-width: 0;
-  background: var(--surface);
+  background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 0.65rem;
@@ -442,14 +447,16 @@ textarea {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 0.5rem 0.6rem;
-  background: var(--surface-2);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
   cursor: pointer;
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .idea-card:hover {
   border-color: var(--accent);
   transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 
 .idea-card-title {
@@ -486,7 +493,7 @@ textarea {
   max-width: 640px;
   width: 100%;
   position: relative;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-lg);
 }
 
 .panel-close {
