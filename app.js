@@ -42,8 +42,8 @@
     setStatus("Testing connection…", "pending");
 
     try {
-      await Api.testConnection({ apiKey, model: Storage.getModelId() });
-      Storage.setApiKey(apiKey);
+      await Api.testConnection({ apiKey, model: AppStorage.getModelId() });
+      AppStorage.setApiKey(apiKey);
       setStatus("Connected — key saved.", "success");
       setTimeout(showAppShell, 500);
     } catch (err) {
@@ -60,7 +60,7 @@
     });
     switchView("board");
 
-    if (Storage.getApiKey()) {
+    if (AppStorage.getApiKey()) {
       showAppShell();
     } else {
       showLanding();

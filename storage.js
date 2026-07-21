@@ -1,7 +1,7 @@
 // localStorage + IndexedDB wrapper: apiKey/modelId, pillars, voiceProfile,
 // learnedGuidelines, ideas. IndexedDB stores land in Phase 3+.
 
-const Storage = (() => {
+const AppStorage = (() => {
   const API_KEY_STORAGE_KEY = "apiKey";
   const MODEL_ID_STORAGE_KEY = "modelId";
   const DEFAULT_MODEL_ID = "claude-sonnet-5";
