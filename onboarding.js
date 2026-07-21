@@ -460,6 +460,7 @@ const Onboarding = (() => {
       statusEl.textContent = "";
       maybeShowContinueButton();
     } catch (err) {
+      if (await App.handleAuthError(err, requestAssistantTurn)) return;
       statusEl.textContent = err.message;
       statusEl.className = "status-error";
     } finally {
@@ -580,6 +581,10 @@ const Onboarding = (() => {
         draft = parseSynthesizedProfile(Api.extractText(response));
         if (!draft) errorMessage = "Couldn't parse the synthesized profile — starting from a blank form instead.";
       } catch (err) {
+        if (err.status === 401) {
+          const gotNewKey = await App.promptForNewKey(err.message);
+          if (gotNewKey) return renderStep5();
+        }
         errorMessage = `Synthesis call failed (${err.message}) — starting from a blank form instead.`;
       }
       state.draftProfile = draft || emptyVoiceProfileDraft();

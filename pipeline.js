@@ -202,6 +202,7 @@ const Pipeline = (() => {
         await runProposal(ideaId);
       }
     } catch (err) {
+      if (await App.handleAuthError(err, () => runJudgment(ideaId))) return;
       if (currentIdeaId === ideaId) renderInboxProcessing(idea, err.message);
     }
   }
@@ -233,6 +234,7 @@ const Pipeline = (() => {
       renderBoard();
       if (currentIdeaId === ideaId) renderProposingPanel(idea);
     } catch (err) {
+      if (await App.handleAuthError(err, () => runProposal(ideaId))) return;
       if (currentIdeaId === ideaId) renderProposingPanel(idea, { error: err.message });
     }
   }
@@ -457,6 +459,10 @@ const Pipeline = (() => {
     await AppStorage.saveIdea(idea);
     renderChatLogInto("prop-chat-log", idea.conversationHistory);
 
+    await runProposalRevision(idea, text);
+  }
+
+  async function runProposalRevision(idea, pushbackText) {
     const statusEl = document.getElementById("prop-status");
     statusEl.textContent = "Thinking…";
     statusEl.className = "status-pending";
@@ -467,7 +473,7 @@ const Pipeline = (() => {
         apiKey: AppStorage.getApiKey(),
         model: AppStorage.getModelId(),
         system: buildProposingSystemPrompt(voiceProfile, pillarsConfig, idea),
-        messages: [{ role: "user", content: buildRevisionRequestMessage(idea, text) }],
+        messages: [{ role: "user", content: buildRevisionRequestMessage(idea, pushbackText) }],
         maxTokens: 800,
       });
       const parsed = parseProposal(Api.extractText(response), pillarsConfig);
@@ -477,8 +483,9 @@ const Pipeline = (() => {
       idea.conversationHistory.push({ role: "assistant", content: formatProposalSummary(idea) });
       await AppStorage.saveIdea(idea);
       renderBoard();
-      if (currentIdeaId === ideaId) renderProposingPanel(idea);
+      if (currentIdeaId === idea.id) renderProposingPanel(idea);
     } catch (err) {
+      if (await App.handleAuthError(err, () => runProposalRevision(idea, pushbackText))) return;
       statusEl.textContent = err.message;
       statusEl.className = "status-error";
     }

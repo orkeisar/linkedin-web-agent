@@ -36,7 +36,9 @@ const Api = (() => {
 
     if (!response.ok) {
       const message = data?.error?.message || `Anthropic API request failed with status ${response.status}.`;
-      throw new Error(message);
+      const error = new Error(message);
+      error.status = response.status;
+      throw error;
     }
 
     return data;
