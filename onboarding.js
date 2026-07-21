@@ -598,7 +598,7 @@ const Onboarding = (() => {
     const container = document.getElementById("onboarding-step-container");
     container.innerHTML = `
       <h2>Review your voice profile</h2>
-      ${errorMessage ? `<p class="warning">${errorMessage}</p>` : ""}
+      <p class="warning" id="ob-vp-synthesis-error" ${errorMessage ? "" : "hidden"}></p>
       <p>Edit anything before saving — nothing is saved until you confirm.</p>
       <div class="field"><label for="ob-vp-role">Role</label><input type="text" id="ob-vp-role" /></div>
       <div class="field"><label for="ob-vp-audience">Audience</label><input type="text" id="ob-vp-audience" /></div>
@@ -631,6 +631,10 @@ const Onboarding = (() => {
         <button type="button" id="ob-save-profile-btn" class="btn-primary">Save and continue</button>
       </div>
     `;
+
+    if (errorMessage) {
+      document.getElementById("ob-vp-synthesis-error").textContent = errorMessage;
+    }
 
     document.getElementById("ob-vp-role").value = draft.role;
     document.getElementById("ob-vp-audience").value = draft.audience;
