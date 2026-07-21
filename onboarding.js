@@ -126,6 +126,18 @@ const Onboarding = (() => {
     else if (state.step === 5) renderStep5();
   }
 
+  function goBack() {
+    if (state.step <= 1) return;
+    state.step -= 1;
+    if (state.step < 5) {
+      // Leaving step 5 behind invalidates the cached synthesis — regenerate
+      // next time step 5 is reached so it reflects whatever changed upstream.
+      state.draftProfile = null;
+      state.synthesisError = null;
+    }
+    renderStep();
+  }
+
   // --- Step 1: pillars review ---
 
   function renderStep1() {
@@ -142,7 +154,7 @@ const Onboarding = (() => {
         <input type="text" id="ob-recipient-name" />
       </div>
       <div class="field">
-        <label for="ob-strategy-notes">Content strategy notes</label>
+        <label for="ob-strategy-notes">Content strategy notes (optional)</label>
         <textarea id="ob-strategy-notes" rows="4"></textarea>
       </div>
       <div class="field">
@@ -152,6 +164,7 @@ const Onboarding = (() => {
         </div>
         <div id="ob-pillars-container"></div>
       </div>
+      <p id="ob-step1-error" role="status" aria-live="polite"></p>
       <button type="button" id="ob-step1-continue-btn" class="btn-primary">Continue</button>
     `;
 
@@ -184,7 +197,18 @@ const Onboarding = (() => {
     });
 
     document.getElementById("ob-step1-continue-btn").addEventListener("click", async () => {
-      const config = collectPillarsConfig();
+      const errorEl = document.getElementById("ob-step1-error");
+      const recipientName = document.getElementById("ob-recipient-name").value.trim();
+      const contentStrategyNotes = document.getElementById("ob-strategy-notes").value.trim();
+      const validation = validatePillarBlocks(readPillarBlocks());
+
+      if (validation.error) {
+        errorEl.textContent = validation.error;
+        errorEl.className = "status-error";
+        return;
+      }
+
+      const config = { recipientName, contentStrategyNotes, pillars: validation.pillars };
       state.pillarsConfig = config;
       await AppStorage.savePillars(config);
       state.step = 2;
@@ -192,20 +216,27 @@ const Onboarding = (() => {
     });
   }
 
-  function collectPillarsConfig() {
-    const recipientName = document.getElementById("ob-recipient-name").value.trim();
-    const contentStrategyNotes = document.getElementById("ob-strategy-notes").value.trim();
-    const pillars = Array.from(document.querySelectorAll("#ob-pillars-container .pillar-block"))
-      .map((block) => ({
-        name: block.querySelector(".pillar-name").value.trim(),
-        description: block.querySelector(".pillar-description").value.trim(),
-        funnelGoal: block.querySelector(".pillar-funnel-goal").value,
-        exampleAngles: Array.from(block.querySelectorAll(".angle-input"))
-          .map((input) => input.value.trim())
-          .filter(Boolean),
-      }))
-      .filter((pillar) => pillar.name || pillar.description || pillar.exampleAngles.length);
-    return { recipientName, contentStrategyNotes, pillars };
+  function readPillarBlocks() {
+    return Array.from(document.querySelectorAll("#ob-pillars-container .pillar-block")).map((block) => ({
+      name: block.querySelector(".pillar-name").value.trim(),
+      description: block.querySelector(".pillar-description").value.trim(),
+      funnelGoal: block.querySelector(".pillar-funnel-goal").value,
+      exampleAngles: Array.from(block.querySelectorAll(".angle-input"))
+        .map((input) => input.value.trim())
+        .filter(Boolean),
+    }));
+  }
+
+  function validatePillarBlocks(blocks) {
+    const nonEmptyBlocks = blocks.filter((b) => b.name || b.description || b.exampleAngles.length);
+    if (nonEmptyBlocks.length === 0) {
+      return { error: "Add at least one pillar before continuing." };
+    }
+    for (let i = 0; i < nonEmptyBlocks.length; i++) {
+      if (!nonEmptyBlocks[i].name) return { error: `Pillar ${i + 1} needs a name.` };
+      if (!nonEmptyBlocks[i].description) return { error: `Pillar ${i + 1} needs a description.` };
+    }
+    return { pillars: nonEmptyBlocks };
   }
 
   // --- Step 2: API key ---
@@ -219,10 +250,12 @@ const Onboarding = (() => {
         <h2>Connect your Anthropic API key</h2>
         <p>Using the key already saved in this browser.</p>
         <div class="step-actions">
+          <button type="button" id="ob-step2-back-btn" class="btn-secondary">Back</button>
           <button type="button" id="ob-step2-continue-btn" class="btn-primary">Continue</button>
           <button type="button" id="ob-step2-change-key-btn" class="btn-secondary">Use a different key</button>
         </div>
       `;
+      document.getElementById("ob-step2-back-btn").addEventListener("click", goBack);
       document.getElementById("ob-step2-continue-btn").addEventListener("click", () => {
         state.step = 3;
         renderStep();
@@ -245,10 +278,14 @@ const Onboarding = (() => {
         <label for="ob-api-key-input">Anthropic API key</label>
         <input type="password" id="ob-api-key-input" placeholder="sk-ant-..." autocomplete="off" spellcheck="false" />
       </div>
-      <button type="button" id="ob-test-connection-btn" class="btn-primary">Test connection</button>
+      <div class="step-actions">
+        <button type="button" id="ob-step2-back-btn" class="btn-secondary">Back</button>
+        <button type="button" id="ob-test-connection-btn" class="btn-primary">Test connection</button>
+      </div>
       <p id="ob-connection-status" role="status" aria-live="polite"></p>
     `;
 
+    document.getElementById("ob-step2-back-btn").addEventListener("click", goBack);
     document.getElementById("ob-test-connection-btn").addEventListener("click", async () => {
       const input = document.getElementById("ob-api-key-input");
       const button = document.getElementById("ob-test-connection-btn");
@@ -302,6 +339,7 @@ const Onboarding = (() => {
       <div id="ob-samples-container"></div>
       <button type="button" id="ob-add-sample-btn" class="btn-secondary">+ Add another sample</button>
       <div class="step-actions">
+        <button type="button" id="ob-step3-back-btn" class="btn-secondary">Back</button>
         <button type="button" id="ob-step3-skip-btn" class="btn-secondary">Skip this step</button>
         <button type="button" id="ob-step3-continue-btn" class="btn-primary">Continue</button>
       </div>
@@ -312,6 +350,7 @@ const Onboarding = (() => {
       multiline: true,
     });
 
+    document.getElementById("ob-step3-back-btn").addEventListener("click", goBack);
     document.getElementById("ob-step3-skip-btn").addEventListener("click", () => {
       state.rawExamples = [];
       state.step = 4;
@@ -359,12 +398,16 @@ const Onboarding = (() => {
         <button type="submit" id="ob-chat-send-btn" class="btn-primary">Send</button>
       </form>
       <p id="ob-chat-status" role="status" aria-live="polite"></p>
-      <button type="button" id="ob-step4-continue-btn" class="btn-primary" hidden>Continue to summary</button>
+      <div class="step-actions">
+        <button type="button" id="ob-step4-back-btn" class="btn-secondary">Back</button>
+        <button type="button" id="ob-step4-continue-btn" class="btn-primary" hidden>Continue to summary</button>
+      </div>
     `;
 
     renderChatLog();
 
     document.getElementById("ob-chat-form").addEventListener("submit", handleChatSubmit);
+    document.getElementById("ob-step4-back-btn").addEventListener("click", goBack);
     document.getElementById("ob-step4-continue-btn").addEventListener("click", () => {
       state.step = 5;
       renderStep();
@@ -554,31 +597,34 @@ const Onboarding = (() => {
       <p>Edit anything before saving — nothing is saved until you confirm.</p>
       <div class="field"><label for="ob-vp-role">Role</label><input type="text" id="ob-vp-role" /></div>
       <div class="field"><label for="ob-vp-audience">Audience</label><input type="text" id="ob-vp-audience" /></div>
-      <div class="field"><label for="ob-vp-goals">Goals</label><textarea id="ob-vp-goals" rows="2"></textarea></div>
+      <div class="field"><label for="ob-vp-goals">Goals (optional)</label><textarea id="ob-vp-goals" rows="2"></textarea></div>
       <div class="field">
-        <div class="field-header"><label>Tone rules</label><button type="button" id="ob-vp-tone-add" class="btn-secondary">+ Add</button></div>
+        <div class="field-header"><label>Tone rules (optional)</label><button type="button" id="ob-vp-tone-add" class="btn-secondary">+ Add</button></div>
         <div id="ob-vp-tone-container"></div>
       </div>
-      <div class="field"><label for="ob-vp-structure">Structural patterns</label><textarea id="ob-vp-structure" rows="2"></textarea></div>
-      <div class="field"><label for="ob-vp-hashtags">Hashtags/emoji policy</label><input type="text" id="ob-vp-hashtags" /></div>
+      <div class="field"><label for="ob-vp-structure">Structural patterns (optional)</label><textarea id="ob-vp-structure" rows="2"></textarea></div>
+      <div class="field"><label for="ob-vp-hashtags">Hashtags/emoji policy (optional)</label><input type="text" id="ob-vp-hashtags" /></div>
       <div class="field">
-        <div class="field-header"><label>Forbidden phrases</label><button type="button" id="ob-vp-forbidden-add" class="btn-secondary">+ Add</button></div>
+        <div class="field-header"><label>Forbidden phrases (optional)</label><button type="button" id="ob-vp-forbidden-add" class="btn-secondary">+ Add</button></div>
         <div id="ob-vp-forbidden-container"></div>
       </div>
       <div class="field">
-        <div class="field-header"><label>Avoided post types</label><button type="button" id="ob-vp-avoided-add" class="btn-secondary">+ Add</button></div>
+        <div class="field-header"><label>Avoided post types (optional)</label><button type="button" id="ob-vp-avoided-add" class="btn-secondary">+ Add</button></div>
         <div id="ob-vp-avoided-container"></div>
       </div>
       <div class="field">
-        <div class="field-header"><label>Admired examples</label><button type="button" id="ob-vp-admired-add" class="btn-secondary">+ Add</button></div>
+        <div class="field-header"><label>Admired examples (optional)</label><button type="button" id="ob-vp-admired-add" class="btn-secondary">+ Add</button></div>
         <div id="ob-vp-admired-container"></div>
       </div>
       <div class="field">
-        <div class="field-header"><label>Writing samples</label><button type="button" id="ob-vp-samples-add" class="btn-secondary">+ Add</button></div>
+        <div class="field-header"><label>Writing samples (optional)</label><button type="button" id="ob-vp-samples-add" class="btn-secondary">+ Add</button></div>
         <div id="ob-vp-samples-container"></div>
       </div>
       <p id="ob-save-status" role="status" aria-live="polite"></p>
-      <button type="button" id="ob-save-profile-btn" class="btn-primary">Save and continue</button>
+      <div class="step-actions">
+        <button type="button" id="ob-step5-back-btn" class="btn-secondary">Back</button>
+        <button type="button" id="ob-save-profile-btn" class="btn-primary">Save and continue</button>
+      </div>
     `;
 
     document.getElementById("ob-vp-role").value = draft.role;
@@ -604,20 +650,30 @@ const Onboarding = (() => {
       multiline: true,
     });
 
+    document.getElementById("ob-step5-back-btn").addEventListener("click", goBack);
     document.getElementById("ob-save-profile-btn").addEventListener("click", handleSaveProfile);
   }
 
   async function handleSaveProfile() {
     const statusEl = document.getElementById("ob-save-status");
     const saveBtn = document.getElementById("ob-save-profile-btn");
+
+    const role = document.getElementById("ob-vp-role").value.trim();
+    const audience = document.getElementById("ob-vp-audience").value.trim();
+    if (!role || !audience) {
+      statusEl.textContent = "Role and audience are required before saving.";
+      statusEl.className = "status-error";
+      return;
+    }
+
     saveBtn.disabled = true;
     statusEl.textContent = "Saving…";
     statusEl.className = "status-pending";
 
     const now = new Date().toISOString();
     const voiceProfile = {
-      role: document.getElementById("ob-vp-role").value.trim(),
-      audience: document.getElementById("ob-vp-audience").value.trim(),
+      role,
+      audience,
       goals: document.getElementById("ob-vp-goals").value.trim(),
       toneRules: collectRepeatableList(document.getElementById("ob-vp-tone-container")),
       structuralPatterns: document.getElementById("ob-vp-structure").value.trim(),
