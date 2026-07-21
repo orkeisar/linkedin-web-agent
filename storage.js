@@ -1,5 +1,5 @@
 // localStorage + IndexedDB wrapper: apiKey/modelId, pillars, voiceProfile,
-// learnedGuidelines, ideas. learnedGuidelines/ideas stores land in Phase 4+.
+// learnedGuidelines, ideas. learnedGuidelines store lands in Phase 6.
 
 const AppStorage = (() => {
   const API_KEY_STORAGE_KEY = "apiKey";
@@ -29,9 +29,10 @@ const AppStorage = (() => {
   // --- IndexedDB: pillars + voiceProfile (single record each) ---
 
   const DB_NAME = "linkedinStoryPipeline";
-  const DB_VERSION = 1;
+  const DB_VERSION = 2;
   const PILLARS_STORE = "pillars";
   const VOICE_PROFILE_STORE = "voiceProfile";
+  const IDEAS_STORE = "ideas";
   const SINGLETON_KEY = "current";
 
   let dbPromise = null;
@@ -47,6 +48,9 @@ const AppStorage = (() => {
           }
           if (!db.objectStoreNames.contains(VOICE_PROFILE_STORE)) {
             db.createObjectStore(VOICE_PROFILE_STORE);
+          }
+          if (!db.objectStoreNames.contains(IDEAS_STORE)) {
+            db.createObjectStore(IDEAS_STORE, { keyPath: "id" });
           }
         };
         request.onsuccess = () => resolve(request.result);
@@ -66,11 +70,31 @@ const AppStorage = (() => {
     });
   }
 
+  async function idbGetAll(storeName) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, "readonly");
+      const req = tx.objectStore(storeName).getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
   async function idbPut(storeName, key, value) {
     const db = await openDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(storeName, "readwrite");
       tx.objectStore(storeName).put(value, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async function idbPutKeyed(storeName, value) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, "readwrite");
+      tx.objectStore(storeName).put(value);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
@@ -96,6 +120,18 @@ const AppStorage = (() => {
     return idbPut(VOICE_PROFILE_STORE, SINGLETON_KEY, voiceProfile);
   }
 
+  function getIdeas() {
+    return idbGetAll(IDEAS_STORE);
+  }
+
+  function getIdea(id) {
+    return idbGet(IDEAS_STORE, id);
+  }
+
+  function saveIdea(idea) {
+    return idbPutKeyed(IDEAS_STORE, idea);
+  }
+
   return {
     DEFAULT_MODEL_ID,
     getApiKey,
@@ -108,5 +144,8 @@ const AppStorage = (() => {
     savePillars,
     getVoiceProfile,
     saveVoiceProfile,
+    getIdeas,
+    getIdea,
+    saveIdea,
   };
 })();

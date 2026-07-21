@@ -6,6 +6,7 @@ const App = (() => {
   function showAppShell() {
     document.getElementById("onboarding-view").hidden = true;
     document.getElementById("app-shell").hidden = false;
+    Pipeline.init();
   }
 
   function switchView(viewName) {
