@@ -275,13 +275,19 @@ const Pipeline = (() => {
       <h2>A couple quick questions</h2>
       <div id="interview-chat-log" class="chat-log"></div>
       <form id="interview-chat-form" class="chat-form">
-        <input type="text" id="interview-chat-input" placeholder="Type your answer…" autocomplete="off" />
+        <textarea id="interview-chat-input" placeholder="Type your answer… (Enter to send, Shift+Enter for a new line)" rows="1"></textarea>
         <button type="submit" class="btn-primary">Send</button>
       </form>
       <p id="interview-status" role="status" aria-live="polite"></p>
     `;
     renderChatLogInto("interview-chat-log", idea.conversationHistory);
     document.getElementById("interview-chat-form").addEventListener("submit", (event) => handleInterviewAnswer(event, idea.id));
+    document.getElementById("interview-chat-input").addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        document.getElementById("interview-chat-form").requestSubmit();
+      }
+    });
   }
 
   async function handleInterviewAnswer(event, ideaId) {
@@ -309,7 +315,7 @@ const Pipeline = (() => {
     const div = document.createElement("div");
     div.className = "repeatable-row";
     div.innerHTML = `
-      <input type="text" class="repeatable-input" placeholder="Hook option" />
+      <textarea class="repeatable-input" placeholder="Hook option" rows="2"></textarea>
       <button type="button" class="remove-repeatable-btn" aria-label="Remove">&times;</button>
     `;
     div.querySelector(".repeatable-input").value = value || "";
@@ -366,6 +372,7 @@ const Pipeline = (() => {
 
     container.innerHTML = `
       <h2>Propose the angle</h2>
+      <p class="angle-source-badge" id="prop-angle-source"></p>
       <p class="warning" id="prop-error" ${options.error ? "" : "hidden"}></p>
       <div class="field">
         <label for="prop-pillar">Pillar</label>
@@ -385,17 +392,16 @@ const Pipeline = (() => {
       </div>
       <div class="field">
         <label for="prop-angle">Chosen angle</label>
-        <textarea id="prop-angle" rows="2"></textarea>
+        <textarea id="prop-angle" rows="3"></textarea>
       </div>
       <div class="field">
         <label for="prop-cta">Call to action</label>
-        <input type="text" id="prop-cta" />
+        <textarea id="prop-cta" rows="2"></textarea>
       </div>
-      <p class="idea-meta" id="prop-angle-source"></p>
 
       <div id="prop-chat-log" class="chat-log"></div>
       <form id="prop-chat-form" class="chat-form">
-        <input type="text" id="prop-chat-input" placeholder="Ask the agent to revise anything…" autocomplete="off" />
+        <textarea id="prop-chat-input" placeholder="Ask the agent to revise anything… (Enter to send, Shift+Enter for a new line)" rows="1"></textarea>
         <button type="submit" class="btn-primary">Send</button>
       </form>
       <p id="prop-status" role="status" aria-live="polite"></p>
@@ -442,6 +448,12 @@ const Pipeline = (() => {
 
     renderChatLogInto("prop-chat-log", idea.conversationHistory);
     document.getElementById("prop-chat-form").addEventListener("submit", (event) => handleProposalChatSubmit(event, idea.id));
+    document.getElementById("prop-chat-input").addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        document.getElementById("prop-chat-form").requestSubmit();
+      }
+    });
     document.getElementById("prop-confirm-btn").addEventListener("click", () => handleConfirmProposal(idea.id));
   }
 
@@ -518,10 +530,15 @@ const Pipeline = (() => {
     }
 
     await AppStorage.saveIdea(idea);
-    statusEl.textContent = "Angle confirmed and saved.";
+    statusEl.textContent = "Angle confirmed and saved — closing…";
     statusEl.className = "status-success";
     document.getElementById("prop-angle-source").textContent = `Angle source: ${idea.angleSource}`;
+    document.getElementById("prop-confirm-btn").disabled = true;
     renderBoard();
+
+    setTimeout(() => {
+      if (currentIdeaId === ideaId) closePanel();
+    }, 1500);
   }
 
   // --- read-only fallback (Drafting/Ready to Post/Posted — later phases) ---

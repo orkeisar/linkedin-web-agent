@@ -394,7 +394,7 @@ const Onboarding = (() => {
       <h2>Let's talk about your voice</h2>
       <div id="ob-chat-log" class="chat-log"></div>
       <form id="ob-chat-form" class="chat-form">
-        <input type="text" id="ob-chat-input" placeholder="Type your reply…" autocomplete="off" />
+        <textarea id="ob-chat-input" placeholder="Type your reply… (Enter to send, Shift+Enter for a new line)" rows="1"></textarea>
         <button type="submit" id="ob-chat-send-btn" class="btn-primary">Send</button>
       </form>
       <p id="ob-chat-status" role="status" aria-live="polite"></p>
@@ -407,6 +407,12 @@ const Onboarding = (() => {
     renderChatLog();
 
     document.getElementById("ob-chat-form").addEventListener("submit", handleChatSubmit);
+    document.getElementById("ob-chat-input").addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        document.getElementById("ob-chat-form").requestSubmit();
+      }
+    });
     document.getElementById("ob-step4-back-btn").addEventListener("click", goBack);
     document.getElementById("ob-step4-continue-btn").addEventListener("click", () => {
       state.step = 5;
