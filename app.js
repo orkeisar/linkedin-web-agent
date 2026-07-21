@@ -45,7 +45,7 @@
       await Api.testConnection({ apiKey, model: AppStorage.getModelId() });
       AppStorage.setApiKey(apiKey);
       setStatus("Connected — key saved.", "success");
-      setTimeout(showAppShell, 500);
+      setTimeout(showAppShell, 1500);
     } catch (err) {
       setStatus(err.message, "error");
     } finally {
