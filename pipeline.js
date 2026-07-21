@@ -1,6 +1,7 @@
 // Idea state machine, kanban board rendering, IndexedDB CRUD for the
-// `ideas` store. Covers Inbox -> Interviewing -> Proposing (Drafting and
-// beyond land in Phase 5+).
+// `ideas` store. Owns Inbox -> Interviewing -> Proposing and the panel
+// shell (modal, board); Drafting/Ready to Post/Posted panels are rendered
+// by draft.js via Pipeline.renderIdeaPanelContent's dispatch.
 
 const Pipeline = (() => {
   const STATUSES = ["Inbox", "Interviewing", "Proposing", "Drafting", "Ready to Post", "Posted"];
@@ -408,6 +409,7 @@ const Pipeline = (() => {
 
       <div class="step-actions">
         <button type="button" id="prop-confirm-btn" class="btn-primary">Confirm angle</button>
+        <button type="button" id="prop-draft-btn" class="btn-primary">Draft this post</button>
       </div>
     `;
 
@@ -455,6 +457,7 @@ const Pipeline = (() => {
       }
     });
     document.getElementById("prop-confirm-btn").addEventListener("click", () => handleConfirmProposal(idea.id));
+    document.getElementById("prop-draft-btn").addEventListener("click", () => handleStartDrafting(idea.id));
   }
 
   async function handleProposalChatSubmit(event, ideaId) {
@@ -503,17 +506,17 @@ const Pipeline = (() => {
     }
   }
 
-  async function handleConfirmProposal(ideaId) {
-    const statusEl = document.getElementById("prop-status");
+  // Applies the panel's current field values to the idea and saves --
+  // shared by "Confirm angle" and "Draft this post", since both need the
+  // hook/angle/cta locked in before proceeding.
+  async function finalizeProposalFields(ideaId) {
     const idea = await AppStorage.getIdea(ideaId);
     const values = readProposalFormValues();
     const pillarsConfig = await AppStorage.getPillars();
     const selectedPillar = pillarsConfig.pillars.find((p) => p.name === values.pillar);
 
     if (!values.pillar || !values.storyShape || !values.chosenAngle || !values.cta || values.hookOptions.length === 0) {
-      statusEl.textContent = "Fill in pillar, story shape, at least one hook, angle, and CTA before confirming.";
-      statusEl.className = "status-error";
-      return;
+      return { error: "Fill in pillar, story shape, at least one hook, angle, and CTA before continuing." };
     }
 
     const angleChanged = values.chosenAngle !== idea.chosenAngle;
@@ -530,15 +533,43 @@ const Pipeline = (() => {
     }
 
     await AppStorage.saveIdea(idea);
+    return { idea };
+  }
+
+  async function handleConfirmProposal(ideaId) {
+    const statusEl = document.getElementById("prop-status");
+    const result = await finalizeProposalFields(ideaId);
+
+    if (result.error) {
+      statusEl.textContent = result.error;
+      statusEl.className = "status-error";
+      return;
+    }
+
     statusEl.textContent = "Angle confirmed and saved — closing…";
     statusEl.className = "status-success";
-    document.getElementById("prop-angle-source").textContent = `Angle source: ${idea.angleSource}`;
+    document.getElementById("prop-angle-source").textContent = `Angle source: ${result.idea.angleSource}`;
     document.getElementById("prop-confirm-btn").disabled = true;
     renderBoard();
 
     setTimeout(() => {
       if (currentIdeaId === ideaId) closePanel();
     }, 1500);
+  }
+
+  async function handleStartDrafting(ideaId) {
+    const statusEl = document.getElementById("prop-status");
+    const result = await finalizeProposalFields(ideaId);
+
+    if (result.error) {
+      statusEl.textContent = result.error;
+      statusEl.className = "status-error";
+      return;
+    }
+
+    document.getElementById("prop-confirm-btn").disabled = true;
+    document.getElementById("prop-draft-btn").disabled = true;
+    await Draft.startDrafting(ideaId);
   }
 
   // --- read-only fallback (Drafting/Ready to Post/Posted — later phases) ---
@@ -660,7 +691,11 @@ const Pipeline = (() => {
     if (idea.status === "Inbox") renderInboxProcessing(idea, null);
     else if (idea.status === "Interviewing") renderInterviewPanel(idea);
     else if (idea.status === "Proposing") renderProposingPanel(idea);
-    else renderReadOnlyPanel(idea);
+    else if (idea.status === "Drafting" || idea.status === "Ready to Post" || idea.status === "Posted") {
+      Draft.renderPanel(idea);
+    } else {
+      renderReadOnlyPanel(idea);
+    }
   }
 
   // --- board rendering ---
@@ -729,5 +764,5 @@ const Pipeline = (() => {
     renderBoard();
   }
 
-  return { init, renderBoard };
+  return { init, renderBoard, closePanel, getCurrentIdeaId: () => currentIdeaId };
 })();
