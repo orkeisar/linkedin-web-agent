@@ -408,7 +408,7 @@ const Onboarding = (() => {
 
     document.getElementById("ob-chat-form").addEventListener("submit", handleChatSubmit);
     document.getElementById("ob-chat-input").addEventListener("keydown", (event) => {
-      if (event.key === "Enter" && !event.shiftKey) {
+      if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
         event.preventDefault();
         document.getElementById("ob-chat-form").requestSubmit();
       }

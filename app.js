@@ -50,7 +50,21 @@ const App = (() => {
     document.body.appendChild(overlay);
   }
 
+  // Serialize concurrent reauth requests through one queue -- two Api calls
+  // can independently hit a 401 around the same time (e.g. two ideas
+  // created back-to-back), and the modal is a singleton DOM node. Without
+  // this, overlapping calls would each wire a fresh pair of Save/Cancel
+  // listeners onto the same buttons, so a single click could fire every
+  // stacked handler at once.
+  let reauthQueue = Promise.resolve();
+
   function promptForNewKey(reasonMessage) {
+    const next = reauthQueue.then(() => promptForNewKeyOnce(reasonMessage));
+    reauthQueue = next;
+    return next;
+  }
+
+  function promptForNewKeyOnce(reasonMessage) {
     ensureReauthModalExists();
     const overlay = document.getElementById("reauth-overlay");
     const input = document.getElementById("reauth-key-input");
@@ -107,7 +121,11 @@ const App = (() => {
     if (err.status !== 401) return false;
     const gotNewKey = await promptForNewKey(err.message);
     if (gotNewKey && retryFn) {
-      retryFn();
+      // Await the retry fully before returning: callers that return right
+      // after this resolves also run their own `finally` block (re-enabling
+      // buttons/inputs), which would race with an in-flight retry and let
+      // the user submit again mid-request if we didn't wait for it here.
+      await retryFn();
       return true;
     }
     return false;

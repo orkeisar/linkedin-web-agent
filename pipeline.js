@@ -283,7 +283,7 @@ const Pipeline = (() => {
     renderChatLogInto("interview-chat-log", idea.conversationHistory);
     document.getElementById("interview-chat-form").addEventListener("submit", (event) => handleInterviewAnswer(event, idea.id));
     document.getElementById("interview-chat-input").addEventListener("keydown", (event) => {
-      if (event.key === "Enter" && !event.shiftKey) {
+      if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
         event.preventDefault();
         document.getElementById("interview-chat-form").requestSubmit();
       }
@@ -449,7 +449,7 @@ const Pipeline = (() => {
     renderChatLogInto("prop-chat-log", idea.conversationHistory);
     document.getElementById("prop-chat-form").addEventListener("submit", (event) => handleProposalChatSubmit(event, idea.id));
     document.getElementById("prop-chat-input").addEventListener("keydown", (event) => {
-      if (event.key === "Enter" && !event.shiftKey) {
+      if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
         event.preventDefault();
         document.getElementById("prop-chat-form").requestSubmit();
       }
