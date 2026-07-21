@@ -361,18 +361,31 @@ const Draft = (() => {
   }
 
   async function handleMarkPosted(ideaId, pastedText) {
-    const idea = await AppStorage.getIdea(ideaId);
-    if (!idea) return;
+    const statusEl = document.getElementById("mark-posted-status");
+    let idea;
+    try {
+      idea = await AppStorage.getIdea(ideaId);
+      if (!idea) return;
 
-    // "Store postedText regardless of whether it differs from draft" --
-    // when posted as-is, postedText is simply a copy of the draft, so it
-    // always reflects the true published text once available.
-    const finalText = pastedText || idea.draft || "";
-    idea.postedText = finalText;
-    idea.status = "Posted";
-    idea.datePosted = new Date().toISOString();
-    await AppStorage.saveIdea(idea);
+      // "Store postedText regardless of whether it differs from draft" --
+      // when posted as-is, postedText is simply a copy of the draft, so it
+      // always reflects the true published text once available.
+      const finalText = pastedText || idea.draft || "";
+      idea.postedText = finalText;
+      idea.status = "Posted";
+      idea.datePosted = new Date().toISOString();
+      await AppStorage.saveIdea(idea);
+    } catch (err) {
+      if (statusEl) {
+        statusEl.textContent = `Couldn't save: ${err.message}`;
+        statusEl.className = "status-error";
+      }
+      setMarkPostedButtonsDisabled(false);
+      return;
+    }
+
     Pipeline.renderBoard();
+    const finalText = idea.postedText;
 
     const shouldExtract = !!pastedText && Learning.isSubstantiveChange(idea.draft || "", finalText);
     if (!shouldExtract) {
@@ -380,7 +393,6 @@ const Draft = (() => {
       return;
     }
 
-    const statusEl = document.getElementById("mark-posted-status");
     if (statusEl) {
       statusEl.textContent = "Comparing what changed to sharpen future drafts…";
       statusEl.className = "status-pending";

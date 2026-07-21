@@ -63,7 +63,7 @@ const Learning = (() => {
       const parsed = JSON.parse(cleaned);
       if (!Array.isArray(parsed.patterns)) return [];
       return parsed.patterns
-        .filter((p) => p && p.description)
+        .filter((p) => p && typeof p.description === "string" && p.description.trim())
         .map((p) => ({
           description: String(p.description).trim(),
           draftExcerpt: p.draftExcerpt ? String(p.draftExcerpt).trim() : "",
