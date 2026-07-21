@@ -1,5 +1,5 @@
 // localStorage + IndexedDB wrapper: apiKey/modelId, pillars, voiceProfile,
-// learnedGuidelines, ideas. learnedGuidelines store lands in Phase 6.
+// learnedGuidelines, ideas.
 
 const AppStorage = (() => {
   const API_KEY_STORAGE_KEY = "apiKey";
@@ -29,10 +29,11 @@ const AppStorage = (() => {
   // --- IndexedDB: pillars + voiceProfile (single record each) ---
 
   const DB_NAME = "linkedinStoryPipeline";
-  const DB_VERSION = 2;
+  const DB_VERSION = 3;
   const PILLARS_STORE = "pillars";
   const VOICE_PROFILE_STORE = "voiceProfile";
   const IDEAS_STORE = "ideas";
+  const LEARNED_GUIDELINES_STORE = "learnedGuidelines";
   const SINGLETON_KEY = "current";
 
   let dbPromise = null;
@@ -51,6 +52,9 @@ const AppStorage = (() => {
           }
           if (!db.objectStoreNames.contains(IDEAS_STORE)) {
             db.createObjectStore(IDEAS_STORE, { keyPath: "id" });
+          }
+          if (!db.objectStoreNames.contains(LEARNED_GUIDELINES_STORE)) {
+            db.createObjectStore(LEARNED_GUIDELINES_STORE, { keyPath: "id" });
           }
         };
         request.onsuccess = () => resolve(request.result);
@@ -132,6 +136,14 @@ const AppStorage = (() => {
     return idbPutKeyed(IDEAS_STORE, idea);
   }
 
+  function getLearnedGuidelines() {
+    return idbGetAll(LEARNED_GUIDELINES_STORE);
+  }
+
+  function addLearnedGuideline(guideline) {
+    return idbPutKeyed(LEARNED_GUIDELINES_STORE, guideline);
+  }
+
   return {
     DEFAULT_MODEL_ID,
     getApiKey,
@@ -147,5 +159,7 @@ const AppStorage = (() => {
     getIdeas,
     getIdea,
     saveIdea,
+    getLearnedGuidelines,
+    addLearnedGuideline,
   };
 })();

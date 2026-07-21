@@ -1,7 +1,7 @@
-// Per-idea drafting chat/revision UI. Assembles the layered system prompt
-// (best-practices baseline, voice profile, funnel goal -- learnedGuidelines
-// slot reserved for Phase 6) plus live few-shot examples from Posted
-// drafts, and owns the Drafting / Ready to Post / Posted panel views.
+// Per-idea drafting chat/revision UI. Assembles the four-layer system
+// prompt (best-practices baseline, voice profile, funnel goal, learned
+// guidelines) plus live few-shot examples from Posted drafts, and owns
+// the Drafting / Ready to Post / Posted panel views.
 
 const Draft = (() => {
   // --- helpers ---
@@ -69,7 +69,9 @@ const Draft = (() => {
 
   async function fetchFewShotExamples() {
     const ideas = await AppStorage.getIdeas();
-    return ideas.filter((i) => i.status === "Posted" && i.draft).map((i) => i.draft);
+    return ideas
+      .filter((i) => i.status === "Posted" && (i.postedText || i.draft))
+      .map((i) => i.postedText || i.draft);
   }
 
   function buildVoiceProfileLayer(voiceProfile) {
@@ -95,11 +97,19 @@ const Draft = (() => {
     return guidance[funnelGoal] || `Funnel goal: ${funnelGoal || "(not set)"}`;
   }
 
+  function buildLearnedGuidelinesLayer(learnedGuidelines) {
+    if (!learnedGuidelines.length) {
+      return "No learned guidelines yet — this person hasn't posted enough for patterns to emerge.";
+    }
+    return learnedGuidelines.map((g) => `- ${g.description}`).join("\n");
+  }
+
   async function buildDraftingSystemPrompt(idea) {
-    const [bestPractices, voiceProfile, fewShotExamples] = await Promise.all([
+    const [bestPractices, voiceProfile, fewShotExamples, learnedGuidelines] = await Promise.all([
       fetchBestPractices(),
       AppStorage.getVoiceProfile(),
       fetchFewShotExamples(),
+      AppStorage.getLearnedGuidelines(),
     ]);
 
     const parts = [
@@ -115,10 +125,9 @@ const Draft = (() => {
       "=== Layer 3: this post's funnel goal (shapes angle/CTA within whatever layer 2 allows) ===",
       buildFunnelGoalLayer(idea.funnelGoal),
       "",
-      // Layer 4 (learnedGuidelines) intentionally not built yet. Phase 6 adds
-      // the learnedGuidelines store and injects it here as the most specific,
-      // most recent layer -- it will take priority over layers 1-3 above
-      // wherever they conflict, same pattern as the layers before it.
+      "=== Layer 4: learned guidelines for this specific person (most specific, most recent -- overrides layers 1-3 above wherever they conflict) ===",
+      buildLearnedGuidelinesLayer(learnedGuidelines),
+      "",
     ];
 
     if (fewShotExamples.length) {
@@ -312,19 +321,83 @@ const Draft = (() => {
       }
     });
 
-    document.getElementById("ready-mark-posted-btn").addEventListener("click", () => handleMarkPosted(idea.id));
+    document.getElementById("ready-mark-posted-btn").addEventListener("click", () => renderMarkPostedConfirm(idea));
   }
 
-  async function handleMarkPosted(ideaId) {
-    const postedBtn = document.getElementById("ready-mark-posted-btn");
-    if (postedBtn) postedBtn.disabled = true;
+  // --- Mark Posted confirmation (the learning-loop entry point) ---
+
+  function renderMarkPostedConfirm(idea) {
+    const container = document.getElementById("panel-content");
+    container.innerHTML = `
+      <h2>Mark as posted</h2>
+      <p>Paste what you actually posted, or confirm it went out as drafted.</p>
+      <div class="field">
+        <label for="posted-text-input">What was actually posted (leave blank if it went out exactly as drafted)</label>
+        <textarea id="posted-text-input" rows="8" placeholder="Paste the final published text here…"></textarea>
+      </div>
+      <p id="mark-posted-status" role="status" aria-live="polite"></p>
+      <div class="step-actions">
+        <button type="button" id="posted-as-is-btn" class="btn-secondary">Posted as-is</button>
+        <button type="button" id="posted-save-btn" class="btn-primary">Save &amp; mark posted</button>
+      </div>
+    `;
+
+    document.getElementById("posted-as-is-btn").addEventListener("click", () => {
+      setMarkPostedButtonsDisabled(true);
+      handleMarkPosted(idea.id, null);
+    });
+    document.getElementById("posted-save-btn").addEventListener("click", () => {
+      const text = document.getElementById("posted-text-input").value.trim();
+      setMarkPostedButtonsDisabled(true);
+      handleMarkPosted(idea.id, text || null);
+    });
+  }
+
+  function setMarkPostedButtonsDisabled(disabled) {
+    const asIsBtn = document.getElementById("posted-as-is-btn");
+    const saveBtn = document.getElementById("posted-save-btn");
+    if (asIsBtn) asIsBtn.disabled = disabled;
+    if (saveBtn) saveBtn.disabled = disabled;
+  }
+
+  async function handleMarkPosted(ideaId, pastedText) {
     const idea = await AppStorage.getIdea(ideaId);
     if (!idea) return;
+
+    // "Store postedText regardless of whether it differs from draft" --
+    // when posted as-is, postedText is simply a copy of the draft, so it
+    // always reflects the true published text once available.
+    const finalText = pastedText || idea.draft || "";
+    idea.postedText = finalText;
     idea.status = "Posted";
     idea.datePosted = new Date().toISOString();
     await AppStorage.saveIdea(idea);
     Pipeline.renderBoard();
-    Pipeline.closePanel();
+
+    const shouldExtract = !!pastedText && Learning.isSubstantiveChange(idea.draft || "", finalText);
+    if (!shouldExtract) {
+      Pipeline.closePanel();
+      return;
+    }
+
+    const statusEl = document.getElementById("mark-posted-status");
+    if (statusEl) {
+      statusEl.textContent = "Comparing what changed to sharpen future drafts…";
+      statusEl.className = "status-pending";
+    }
+
+    const savedCount = await Learning.extractAndSaveGuidelines(idea, finalText);
+
+    if (statusEl) {
+      statusEl.textContent = savedCount
+        ? `Posted. Learned ${savedCount} new pattern${savedCount === 1 ? "" : "s"} — closing…`
+        : "Posted. Nothing concrete enough to learn from this edit — closing…";
+      statusEl.className = "status-success";
+    }
+
+    setTimeout(() => {
+      if (Pipeline.getCurrentIdeaId() === ideaId) Pipeline.closePanel();
+    }, 1500);
   }
 
   // --- Posted panel (read-only) ---
@@ -335,7 +408,7 @@ const Draft = (() => {
       <h2>Posted</h2>
       <p class="idea-meta" id="posted-date"></p>
       <div class="field">
-        <label>Final draft</label>
+        <label>What was posted</label>
         <div class="idea-raw-note" id="posted-text-display"></div>
       </div>
     `;
