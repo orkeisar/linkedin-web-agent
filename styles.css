@@ -571,3 +571,71 @@ textarea {
   color: var(--accent);
   border-bottom-color: var(--accent);
 }
+
+/* Settings */
+
+#view-settings {
+  max-width: 720px;
+}
+
+.settings-section {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.settings-section h3 {
+  margin-top: 0;
+}
+
+.settings-danger {
+  border-color: var(--error-bg);
+  background: var(--error-bg);
+}
+
+.btn-danger {
+  padding: 0.6rem 1.25rem;
+  border: 1px solid var(--error);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--error);
+  font-weight: 600;
+}
+
+.btn-danger:hover {
+  background: var(--error);
+  color: var(--on-accent);
+}
+
+/* Responsive: tablet and narrower */
+
+@media (max-width: 900px) {
+  .board-columns {
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 1rem;
+  }
+
+  .board-column {
+    flex: 0 0 220px;
+  }
+}
+
+@media (max-width: 640px) {
+  .step-actions,
+  .chat-form,
+  .link-row {
+    flex-wrap: wrap;
+  }
+
+  .panel {
+    padding: 1.25rem;
+  }
+
+  #app {
+    padding: 1.25rem 0.75rem;
+  }
+}

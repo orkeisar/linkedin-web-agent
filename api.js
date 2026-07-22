@@ -24,18 +24,23 @@ const Api = (() => {
         }),
       });
     } catch (err) {
-      throw new Error(`Network error reaching the Anthropic API: ${err.message}`);
+      throw new Error(`Couldn't reach the Anthropic API — check your internet connection and try again. (${err.message})`);
     }
 
     let data;
     try {
       data = await response.json();
     } catch (err) {
-      throw new Error(`Anthropic API returned an unreadable response (status ${response.status}).`);
+      throw new Error(`Anthropic API returned an unreadable response (status ${response.status}). Try again in a moment.`);
     }
 
     if (!response.ok) {
-      const message = data?.error?.message || `Anthropic API request failed with status ${response.status}.`;
+      let message = data?.error?.message || `Anthropic API request failed with status ${response.status}.`;
+      if (response.status === 429) {
+        message = `Rate limited by Anthropic: ${message} Wait a moment and try again.`;
+      } else if (response.status >= 500) {
+        message = `Anthropic's API is having issues (${response.status}): ${message} Try again shortly.`;
+      }
       const error = new Error(message);
       error.status = response.status;
       throw error;

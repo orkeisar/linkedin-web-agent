@@ -104,6 +104,39 @@ const AppStorage = (() => {
     });
   }
 
+  async function idbDelete(storeName, key) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, "readwrite");
+      tx.objectStore(storeName).delete(key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async function idbReplaceAll(storeName, items) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, "readwrite");
+      const store = tx.objectStore(storeName);
+      store.clear();
+      items.forEach((item) => store.put(item));
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async function clearAllData() {
+    const db = await openDb();
+    const storeNames = Array.from(db.objectStoreNames);
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeNames, "readwrite");
+      storeNames.forEach((name) => tx.objectStore(name).clear());
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
   function emptyPillars() {
     return { recipientName: "", contentStrategyNotes: "", pillars: [] };
   }
@@ -140,8 +173,21 @@ const AppStorage = (() => {
     return idbGetAll(LEARNED_GUIDELINES_STORE);
   }
 
-  function addLearnedGuideline(guideline) {
+  // Upsert: also used to edit an existing guideline (pass its existing id).
+  function saveLearnedGuideline(guideline) {
     return idbPutKeyed(LEARNED_GUIDELINES_STORE, guideline);
+  }
+
+  function deleteLearnedGuideline(id) {
+    return idbDelete(LEARNED_GUIDELINES_STORE, id);
+  }
+
+  function replaceLearnedGuidelines(guidelines) {
+    return idbReplaceAll(LEARNED_GUIDELINES_STORE, guidelines);
+  }
+
+  function replaceIdeas(ideas) {
+    return idbReplaceAll(IDEAS_STORE, ideas);
   }
 
   return {
@@ -159,7 +205,11 @@ const AppStorage = (() => {
     getIdeas,
     getIdea,
     saveIdea,
+    replaceIdeas,
     getLearnedGuidelines,
-    addLearnedGuideline,
+    saveLearnedGuideline,
+    deleteLearnedGuideline,
+    replaceLearnedGuidelines,
+    clearAllData,
   };
 })();

@@ -16,6 +16,9 @@ const App = (() => {
     document.querySelectorAll(".nav-link").forEach((btn) => {
       btn.classList.toggle("active", btn.dataset.view === viewName);
     });
+    if (viewName === "settings") {
+      Settings.render();
+    }
   }
 
   function isValidPillarsConfig(config) {

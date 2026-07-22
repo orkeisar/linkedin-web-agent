@@ -149,6 +149,11 @@ const Onboarding = (() => {
           ? "Here's the starting strategy — edit anything before continuing."
           : "No pillars were pre-filled — add at least one, or come back to this later in Settings."
       }</p>
+      <p class="idea-meta">
+        Already set up on another device?
+        <button type="button" id="ob-import-link" class="btn-secondary">Import your backup</button>
+        <input type="file" id="ob-import-file" accept="application/json" hidden />
+      </p>
       <div class="field">
         <label for="ob-recipient-name">Your name (optional)</label>
         <input type="text" id="ob-recipient-name" />
@@ -214,6 +219,29 @@ const Onboarding = (() => {
       state.step = 2;
       renderStep();
     });
+
+    document.getElementById("ob-import-link").addEventListener("click", () => {
+      document.getElementById("ob-import-file").click();
+    });
+    document.getElementById("ob-import-file").addEventListener("change", handleImportBackup);
+  }
+
+  async function handleImportBackup(event) {
+    const file = event.target.files[0];
+    event.target.value = "";
+    if (!file) return;
+
+    const errorEl = document.getElementById("ob-step1-error");
+    try {
+      const text = await file.text();
+      await Settings.performImport(text);
+      window.location.reload();
+    } catch (err) {
+      if (errorEl) {
+        errorEl.textContent = `Couldn't import: ${err.message}`;
+        errorEl.className = "status-error";
+      }
+    }
   }
 
   function readPillarBlocks() {

@@ -398,13 +398,18 @@ const Draft = (() => {
       statusEl.className = "status-pending";
     }
 
-    const savedCount = await Learning.extractAndSaveGuidelines(idea, finalText);
+    const { savedCount, error: extractionError } = await Learning.extractAndSaveGuidelines(idea, finalText);
 
     if (statusEl) {
-      statusEl.textContent = savedCount
-        ? `Posted. Learned ${savedCount} new pattern${savedCount === 1 ? "" : "s"} — closing…`
-        : "Posted. Nothing concrete enough to learn from this edit — closing…";
-      statusEl.className = "status-success";
+      if (extractionError) {
+        statusEl.textContent = `Posted. Couldn't check for a new writing pattern this time (${extractionError}) — nothing else is affected. Closing…`;
+        statusEl.className = "status-error";
+      } else {
+        statusEl.textContent = savedCount
+          ? `Posted. Learned ${savedCount} new pattern${savedCount === 1 ? "" : "s"} — closing…`
+          : "Posted. Nothing concrete enough to learn from this edit — closing…";
+        statusEl.className = "status-success";
+      }
     }
 
     setTimeout(() => {

@@ -87,21 +87,20 @@ const Learning = (() => {
       const patterns = parseExtractionResponse(Api.extractText(response));
       const now = new Date().toISOString();
       for (const pattern of patterns) {
-        await AppStorage.addLearnedGuideline({
+        await AppStorage.saveLearnedGuideline({
           id: crypto.randomUUID(),
           description: pattern.description,
           evidence: { draftExcerpt: pattern.draftExcerpt, postedExcerpt: pattern.postedExcerpt },
           dateAdded: now,
         });
       }
-      return patterns.length;
+      return { savedCount: patterns.length, error: null };
     } catch (err) {
       // Best-effort enrichment: the idea is already safely marked Posted
       // by the time this runs, so a failure here (auth, network, a
       // malformed response) shouldn't block or reauth-prompt the user --
-      // just skip it silently and try again next time they post.
-      console.warn("learnedGuidelines extraction skipped:", err.message);
-      return 0;
+      // just skip it and let the caller show a friendly, non-blocking note.
+      return { savedCount: 0, error: err.message };
     }
   }
 
