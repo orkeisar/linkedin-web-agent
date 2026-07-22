@@ -26,6 +26,10 @@ const AppStorage = (() => {
     localStorage.setItem(MODEL_ID_STORAGE_KEY, modelId);
   }
 
+  function clearModelId() {
+    localStorage.removeItem(MODEL_ID_STORAGE_KEY);
+  }
+
   // --- IndexedDB: pillars + voiceProfile (single record each) ---
 
   const DB_NAME = "linkedinStoryPipeline";
@@ -197,6 +201,7 @@ const AppStorage = (() => {
     clearApiKey,
     getModelId,
     setModelId,
+    clearModelId,
     emptyPillars,
     getPillars,
     savePillars,

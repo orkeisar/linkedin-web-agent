@@ -559,11 +559,37 @@ const Settings = (() => {
 
   // Pure restore logic, reused by the onboarding "restore from backup" path
   // so a completely fresh browser can skip onboarding entirely.
+  // Validates shape BEFORE writing anything, so a malformed file can't
+  // leave the stores in a mixed old/new state (some pieces imported,
+  // others not) or crash a later render on an unexpected shape.
+  function validateImportPayload(parsed) {
+    if (!parsed || typeof parsed !== "object") {
+      return "That doesn't look like a valid export file.";
+    }
+    if (parsed.pillars !== undefined) {
+      if (typeof parsed.pillars !== "object" || parsed.pillars === null || !Array.isArray(parsed.pillars.pillars)) {
+        return "The pillars section of that file isn't shaped right.";
+      }
+    }
+    if (parsed.voiceProfile !== undefined && parsed.voiceProfile !== null) {
+      if (typeof parsed.voiceProfile !== "object") {
+        return "The voice profile section of that file isn't shaped right.";
+      }
+    }
+    if (parsed.learnedGuidelines !== undefined && !Array.isArray(parsed.learnedGuidelines)) {
+      return "The learned guidelines section of that file isn't shaped right.";
+    }
+    if (parsed.ideas !== undefined && !Array.isArray(parsed.ideas)) {
+      return "The ideas section of that file isn't shaped right.";
+    }
+    return null;
+  }
+
   async function performImport(jsonText) {
     const parsed = JSON.parse(jsonText);
-    if (!parsed || typeof parsed !== "object") {
-      throw new Error("That doesn't look like a valid export file.");
-    }
+    const validationError = validateImportPayload(parsed);
+    if (validationError) throw new Error(validationError);
+
     if (parsed.pillars) await AppStorage.savePillars(parsed.pillars);
     if (parsed.voiceProfile) await AppStorage.saveVoiceProfile(parsed.voiceProfile);
     await AppStorage.replaceLearnedGuidelines(Array.isArray(parsed.learnedGuidelines) ? parsed.learnedGuidelines : []);
@@ -596,7 +622,8 @@ const Settings = (() => {
     );
     if (!confirmed) return;
 
-    localStorage.clear();
+    AppStorage.clearApiKey();
+    AppStorage.clearModelId();
     await AppStorage.clearAllData();
     window.location.reload();
   }
