@@ -123,10 +123,19 @@ const AppStorage = (() => {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(storeName, "readwrite");
       const store = tx.objectStore(storeName);
-      store.clear();
-      items.forEach((item) => store.put(item));
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = () => reject(tx.error || new Error(`${storeName} replace failed.`));
+      tx.onabort = () => reject(tx.error || new Error(`${storeName} replace was aborted.`));
+      try {
+        store.clear();
+        items.forEach((item) => store.put(item));
+      } catch (err) {
+        // put() throws synchronously on a bad key (e.g. missing/invalid
+        // `id`) without aborting the transaction on its own -- the already
+        // -queued clear()/put()s would otherwise still commit, leaving the
+        // store half-replaced. Abort explicitly so this is all-or-nothing.
+        tx.abort();
+      }
     });
   }
 

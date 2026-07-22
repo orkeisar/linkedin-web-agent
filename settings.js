@@ -93,7 +93,13 @@ const Settings = (() => {
 
   // --- shell ---
 
+  // Bumped on every render() call so an in-flight async section from a
+  // superseded render (e.g. the user clicking the Settings nav twice fast)
+  // can detect it's stale and bail before touching the newer DOM/listeners.
+  let renderGeneration = 0;
+
   function render() {
+    const myGeneration = ++renderGeneration;
     const container = document.getElementById("view-settings");
     container.innerHTML = `
       <h2>Settings</h2>
@@ -213,8 +219,8 @@ const Settings = (() => {
 
     renderApiKeySection();
     renderModelSection();
-    renderPillarsSection();
-    renderVoiceProfileSection();
+    renderPillarsSection(myGeneration);
+    renderVoiceProfileSection(myGeneration);
     renderGuidelinesList();
     wireGuidelinesForm();
     renderBackupSection();
@@ -286,8 +292,9 @@ const Settings = (() => {
 
   // --- pillars ---
 
-  async function renderPillarsSection() {
+  async function renderPillarsSection(generation) {
     const pillars = (await AppStorage.getPillars()) || AppStorage.emptyPillars();
+    if (generation !== renderGeneration) return;
     document.getElementById("settings-recipient-name").value = pillars.recipientName || "";
     document.getElementById("settings-strategy-notes").value = pillars.contentStrategyNotes || "";
 
@@ -354,8 +361,9 @@ const Settings = (() => {
 
   // --- voice profile ---
 
-  async function renderVoiceProfileSection() {
+  async function renderVoiceProfileSection(generation) {
     const vp = (await AppStorage.getVoiceProfile()) || {};
+    if (generation !== renderGeneration) return;
     document.getElementById("settings-vp-role").value = vp.role || "";
     document.getElementById("settings-vp-audience").value = vp.audience || "";
     document.getElementById("settings-vp-goals").value = vp.goals || "";
@@ -486,14 +494,24 @@ const Settings = (() => {
   }
 
   async function handleDeleteGuideline(id) {
-    await AppStorage.deleteLearnedGuideline(id);
+    try {
+      await AppStorage.deleteLearnedGuideline(id);
+    } catch (err) {
+      alert(`Couldn't delete that guideline: ${err.message}`);
+      return;
+    }
     renderGuidelinesList();
   }
 
   async function handleSaveGuideline(guideline, card) {
     const newDescription = card.querySelector(".guideline-description").value.trim();
     if (!newDescription) return;
-    await AppStorage.saveLearnedGuideline({ ...guideline, description: newDescription });
+    try {
+      await AppStorage.saveLearnedGuideline({ ...guideline, description: newDescription });
+    } catch (err) {
+      alert(`Couldn't save that guideline: ${err.message}`);
+      return;
+    }
     renderGuidelinesList();
   }
 
@@ -576,11 +594,21 @@ const Settings = (() => {
         return "The voice profile section of that file isn't shaped right.";
       }
     }
-    if (parsed.learnedGuidelines !== undefined && !Array.isArray(parsed.learnedGuidelines)) {
-      return "The learned guidelines section of that file isn't shaped right.";
+    if (parsed.learnedGuidelines !== undefined) {
+      if (!Array.isArray(parsed.learnedGuidelines)) {
+        return "The learned guidelines section of that file isn't shaped right.";
+      }
+      if (parsed.learnedGuidelines.some((g) => !g || typeof g.id !== "string" || !g.id)) {
+        return "One of the learned guidelines in that file is missing an id.";
+      }
     }
-    if (parsed.ideas !== undefined && !Array.isArray(parsed.ideas)) {
-      return "The ideas section of that file isn't shaped right.";
+    if (parsed.ideas !== undefined) {
+      if (!Array.isArray(parsed.ideas)) {
+        return "The ideas section of that file isn't shaped right.";
+      }
+      if (parsed.ideas.some((i) => !i || typeof i.id !== "string" || !i.id)) {
+        return "One of the ideas in that file is missing an id.";
+      }
     }
     return null;
   }
@@ -624,7 +652,12 @@ const Settings = (() => {
 
     AppStorage.clearApiKey();
     AppStorage.clearModelId();
-    await AppStorage.clearAllData();
+    try {
+      await AppStorage.clearAllData();
+    } catch (err) {
+      alert(`Reset didn't fully complete: ${err.message}. Your API key was cleared, but some data may remain — try again.`);
+      return;
+    }
     window.location.reload();
   }
 

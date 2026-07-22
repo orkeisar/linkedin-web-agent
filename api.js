@@ -31,7 +31,9 @@ const Api = (() => {
     try {
       data = await response.json();
     } catch (err) {
-      throw new Error(`Anthropic API returned an unreadable response (status ${response.status}). Try again in a moment.`);
+      const parseError = new Error(`Anthropic API returned an unreadable response (status ${response.status}). Try again in a moment.`);
+      parseError.status = response.status;
+      throw parseError;
     }
 
     if (!response.ok) {
