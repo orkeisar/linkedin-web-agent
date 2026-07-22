@@ -3,6 +3,10 @@
 // warning.
 
 (function () {
+  if (typeof pdfjsLib !== "undefined") {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
+
   // Chosen conservative threshold: legacy Internet Explorer capped URLs at
   // 2083 characters, and that number still gets cited as the practical
   // "safe everywhere" ceiling for URLs pasted into email/chat clients that
@@ -10,7 +14,15 @@
   // room before anything actually breaks.
   const LINK_LENGTH_WARNING_THRESHOLD = 2000;
 
-  function pillarBlockTemplate() {
+  // Cap on how much extracted document text gets sent to Claude -- keeps
+  // the parse call fast/cheap and well within context limits even for a
+  // long brand-bible doc. ~30k chars is generous for this kind of strategy
+  // document while staying far under any model's context window.
+  const DOC_TEXT_CHAR_LIMIT = 30000;
+
+  let selectedImportFile = null;
+
+  function pillarBlockTemplate(pillar = {}) {
     const div = document.createElement("div");
     div.className = "pillar-block";
     div.innerHTML = `
@@ -37,24 +49,30 @@
       </div>
       <div class="angles-container"></div>
     `;
+    div.querySelector(".pillar-name").value = pillar.name || "";
+    div.querySelector(".pillar-description").value = pillar.description || "";
+    div.querySelector(".pillar-funnel-goal").value = pillar.funnelGoal || "TOFU";
     return div;
   }
 
-  function angleRowTemplate() {
+  function angleRowTemplate(value = "") {
     const div = document.createElement("div");
     div.className = "angle-row";
     div.innerHTML = `
       <input type="text" class="angle-input" placeholder="Example angle" />
       <button type="button" class="remove-angle-btn" aria-label="Remove angle">&times;</button>
     `;
+    div.querySelector(".angle-input").value = value;
     return div;
   }
 
-  function addPillarBlock() {
+  function addPillarBlock(pillar = {}) {
     const container = document.getElementById("pillars-container");
-    const block = pillarBlockTemplate();
+    const block = pillarBlockTemplate(pillar);
     container.appendChild(block);
-    block.querySelector(".angles-container").appendChild(angleRowTemplate());
+    const anglesContainer = block.querySelector(".angles-container");
+    const angles = pillar.exampleAngles && pillar.exampleAngles.length ? pillar.exampleAngles : [""];
+    angles.forEach((angle) => anglesContainer.appendChild(angleRowTemplate(angle)));
   }
 
   function collectConfig() {
@@ -135,11 +153,159 @@
     showLinkOutput(url);
   }
 
+  // --- import from document ---
+
+  function setImportStatus(text, className) {
+    const el = document.getElementById("import-doc-status");
+    el.textContent = text;
+    el.className = className || "";
+  }
+
+  function handleImportFileSelected(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    selectedImportFile = file;
+    document.getElementById("import-doc-filename").textContent = file.name;
+    document.getElementById("import-doc-extract-btn").disabled = false;
+    setImportStatus("", "");
+  }
+
+  async function extractPdfText(file) {
+    const buffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+    const pageTexts = [];
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const content = await page.getTextContent();
+      pageTexts.push(content.items.map((item) => item.str).join(" "));
+    }
+    return pageTexts.join("\n\n");
+  }
+
+  async function extractDocText(file) {
+    const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+    const text = isPdf ? await extractPdfText(file) : await file.text();
+    return text.trim();
+  }
+
+  function buildDocExtractionSystemPrompt() {
+    return [
+      "You read a founder's content-strategy or brand-positioning document and extract a structured content plan for a LinkedIn ghostwriting tool.",
+      "The source document's structure varies -- it might be a table, bullet outline, or freeform notes. Use your judgment to find the equivalent information regardless of headings used.",
+      "Produce 2-6 content pillars. For each pillar, write a clear name, a 1-3 sentence description of what it covers and why, a funnelGoal of TOFU (awareness/thought-leadership), MOFU (proof of expertise/how-to), or BOFU (case studies/results) -- infer this from context if the document doesn't label it explicitly -- and 2-5 short concrete exampleAngles (specific post ideas, not restatements of the pillar name).",
+      "Also write contentStrategyNotes: 2-4 sentences synthesizing the overall positioning -- the unique angle/hook, who the target audience is, and what makes this person credible. This is guidance for a ghostwriting agent, not marketing copy.",
+      "If the document names the founder, extract recipientName as their first name only; otherwise leave it an empty string.",
+      "Return ONLY valid JSON, no markdown fences, no commentary, matching exactly this shape:",
+      '{"recipientName": string, "contentStrategyNotes": string, "pillars": [{"name": string, "description": string, "funnelGoal": "TOFU" | "MOFU" | "BOFU", "exampleAngles": string[]}]}',
+    ].join("\n");
+  }
+
+  function parseDocExtractionResponse(text) {
+    const cleaned = text
+      .trim()
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/```$/, "")
+      .trim();
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch (err) {
+      throw new Error("Claude's response wasn't valid JSON. Try again, or edit the form manually below.");
+    }
+    const pillars = Array.isArray(parsed.pillars)
+      ? parsed.pillars
+          .filter((p) => p && typeof p.name === "string" && p.name.trim())
+          .map((p) => ({
+            name: String(p.name).trim(),
+            description: p.description ? String(p.description).trim() : "",
+            funnelGoal: ["TOFU", "MOFU", "BOFU"].includes(p.funnelGoal) ? p.funnelGoal : "TOFU",
+            exampleAngles: Array.isArray(p.exampleAngles)
+              ? p.exampleAngles.map((a) => String(a).trim()).filter(Boolean)
+              : [],
+          }))
+      : [];
+    return {
+      recipientName: parsed.recipientName ? String(parsed.recipientName).trim() : "",
+      contentStrategyNotes: parsed.contentStrategyNotes ? String(parsed.contentStrategyNotes).trim() : "",
+      pillars,
+    };
+  }
+
+  function applyExtractedConfig(extracted) {
+    if (extracted.recipientName) {
+      document.getElementById("recipient-name").value = extracted.recipientName;
+    }
+    if (extracted.contentStrategyNotes) {
+      document.getElementById("content-strategy-notes").value = extracted.contentStrategyNotes;
+    }
+    if (extracted.pillars.length) {
+      document.getElementById("pillars-container").innerHTML = "";
+      extracted.pillars.forEach((pillar) => addPillarBlock(pillar));
+    }
+  }
+
+  async function handleExtractDoc() {
+    const btn = document.getElementById("import-doc-extract-btn");
+    const keyInput = document.getElementById("import-api-key");
+    const apiKey = keyInput.value.trim();
+
+    if (!selectedImportFile) return;
+    if (!apiKey) {
+      setImportStatus("Enter your API key first.", "status-error");
+      return;
+    }
+    AppStorage.setApiKey(apiKey);
+
+    btn.disabled = true;
+    setImportStatus("Reading document…", "status-pending");
+
+    try {
+      let docText = await extractDocText(selectedImportFile);
+      if (!docText) {
+        throw new Error("Couldn't find any text in that file -- is it a scanned/image-only PDF?");
+      }
+      if (docText.length > DOC_TEXT_CHAR_LIMIT) {
+        docText = docText.slice(0, DOC_TEXT_CHAR_LIMIT);
+      }
+
+      setImportStatus("Extracting pillars & strategy…", "status-pending");
+      const response = await Api.sendMessage({
+        apiKey,
+        model: AppStorage.getModelId(),
+        system: buildDocExtractionSystemPrompt(),
+        messages: [{ role: "user", content: docText }],
+        maxTokens: 2048,
+      });
+
+      const extracted = parseDocExtractionResponse(Api.extractText(response));
+      if (!extracted.pillars.length) {
+        throw new Error("Couldn't find any clear pillars in that document -- try editing the form manually below.");
+      }
+      applyExtractedConfig(extracted);
+      setImportStatus(
+        `Extracted ${extracted.pillars.length} pillar${extracted.pillars.length === 1 ? "" : "s"} — review and edit below before generating the link.`,
+        "status-success"
+      );
+    } catch (err) {
+      setImportStatus(`Couldn't extract from that document: ${err.message}`, "status-error");
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   function init() {
-    document.getElementById("add-pillar-btn").addEventListener("click", addPillarBlock);
+    document.getElementById("add-pillar-btn").addEventListener("click", () => addPillarBlock());
     document.getElementById("pillars-container").addEventListener("click", handlePillarsContainerClick);
     document.getElementById("admin-form").addEventListener("submit", handleGenerateLink);
     document.getElementById("copy-link-btn").addEventListener("click", handleCopyLink);
+
+    const savedKey = AppStorage.getApiKey();
+    if (savedKey) document.getElementById("import-api-key").value = savedKey;
+    document.getElementById("import-doc-choose-btn").addEventListener("click", () => {
+      document.getElementById("import-doc-file").click();
+    });
+    document.getElementById("import-doc-file").addEventListener("change", handleImportFileSelected);
+    document.getElementById("import-doc-extract-btn").addEventListener("click", handleExtractDoc);
 
     addPillarBlock();
   }

@@ -13,6 +13,25 @@
       <p>Set the content strategy for one person, generate their personalized link.</p>
     </header>
 
+    <section class="settings-section" id="import-doc-section">
+      <h3>Import from a document (optional)</h3>
+      <p>Upload a brand/content-strategy doc (PDF, .txt, .md) and Claude will pre-fill the recipient name, strategy notes, and pillars below for you to review and edit.</p>
+      <div class="field">
+        <label for="import-api-key">Your Anthropic API key</label>
+        <input type="password" id="import-api-key" placeholder="sk-ant-..." autocomplete="off" spellcheck="false" />
+        <p class="idea-meta">Used only in this browser, only to read the document. Never included in the generated link. Saved here for next time.</p>
+      </div>
+      <div class="step-actions">
+        <button type="button" id="import-doc-choose-btn" class="btn-secondary">Choose file…</button>
+        <input type="file" id="import-doc-file" accept=".pdf,.txt,.md,text/plain,application/pdf" hidden />
+        <span id="import-doc-filename" class="idea-meta"></span>
+      </div>
+      <div class="step-actions">
+        <button type="button" id="import-doc-extract-btn" class="btn-primary" disabled>Extract pillars &amp; strategy</button>
+      </div>
+      <p id="import-doc-status" role="status" aria-live="polite"></p>
+    </section>
+
     <form id="admin-form">
       <div class="field">
         <label for="recipient-name">Recipient name (optional)</label>
@@ -46,7 +65,10 @@
     </div>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="linkConfig.js"></script>
+  <script src="storage.js"></script>
+  <script src="api.js"></script>
   <script src="admin.js"></script>
 </body>
 </html>
