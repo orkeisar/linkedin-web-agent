@@ -386,6 +386,16 @@ textarea {
   color: var(--on-accent);
 }
 
+.chat-system {
+  align-self: center;
+  background: transparent;
+  border: 1px dashed var(--border-strong);
+  color: var(--text-muted);
+  font-size: 0.85em;
+  font-style: italic;
+  max-width: 95%;
+}
+
 .chat-form {
   display: flex;
   gap: 0.5rem;
@@ -402,6 +412,41 @@ textarea {
 
 .chat-form .btn-primary {
   flex-shrink: 0;
+}
+
+.new-idea-note-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.new-idea-note-row textarea {
+  flex: 1;
+}
+
+.mic-btn {
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface);
+  font-size: 1.1rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.mic-btn:hover {
+  border-color: var(--accent);
+}
+
+.mic-btn.mic-listening {
+  background: var(--error);
+  border-color: var(--error);
+  color: var(--on-accent);
 }
 
 /* Kanban board */

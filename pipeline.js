@@ -9,6 +9,119 @@ const Pipeline = (() => {
   let currentIdeaId = null;
   let initialized = false;
 
+  // --- voice notes (New idea form) ---
+
+  let speechRecognition = null;
+  let speechListening = false;
+  let speechBaseText = "";
+
+  function cleanupSpeech() {
+    if (speechRecognition && speechListening) {
+      try {
+        speechRecognition.stop();
+      } catch (err) {
+        // Already stopped/ended -- nothing to do.
+      }
+    }
+    speechRecognition = null;
+    speechListening = false;
+  }
+
+  function resetMicButtonUi(micBtn, statusEl) {
+    if (micBtn) {
+      micBtn.textContent = "🎤";
+      micBtn.classList.remove("mic-listening");
+      micBtn.setAttribute("aria-label", "Start voice input");
+    }
+    if (statusEl && statusEl.className === "status-pending") {
+      statusEl.textContent = "";
+      statusEl.className = "";
+    }
+  }
+
+  function startListening(noteInput, micBtn, statusEl) {
+    const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognitionCtor) return;
+
+    speechRecognition = new SpeechRecognitionCtor();
+    speechRecognition.continuous = true;
+    speechRecognition.interimResults = true;
+    speechRecognition.lang = navigator.language || "en-US";
+
+    speechBaseText = noteInput.value.trim() ? `${noteInput.value.trim()} ` : "";
+    speechListening = true;
+    micBtn.textContent = "⏹";
+    micBtn.classList.add("mic-listening");
+    micBtn.setAttribute("aria-label", "Stop voice input");
+    if (statusEl) {
+      statusEl.textContent = "Listening…";
+      statusEl.className = "status-pending";
+    }
+
+    // Rebuilding the full transcript from event.results every time (rather
+    // than incrementally appending only the newest chunk) is the reliable
+    // way to do this: interim results get revised in place as the
+    // recognizer refines its guess, and re-deriving from the authoritative
+    // list avoids the duplicated/out-of-order text that incremental
+    // appending is prone to.
+    speechRecognition.onresult = (event) => {
+      let finalTranscript = "";
+      let interimTranscript = "";
+      for (let i = 0; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) {
+          finalTranscript += result[0].transcript;
+        } else {
+          interimTranscript += result[0].transcript;
+        }
+      }
+      noteInput.value = speechBaseText + finalTranscript + interimTranscript;
+    };
+
+    speechRecognition.onerror = (event) => {
+      if (statusEl) {
+        statusEl.textContent =
+          event.error === "not-allowed"
+            ? "Microphone access denied — check your browser's site permissions."
+            : `Voice input stopped (${event.error}).`;
+        statusEl.className = "status-error";
+      }
+    };
+
+    speechRecognition.onend = () => {
+      // Some browsers end the session on their own (e.g. after a pause) --
+      // reset the button either way so it's never stuck showing "stop".
+      speechListening = false;
+      resetMicButtonUi(micBtn, statusEl);
+    };
+
+    try {
+      speechRecognition.start();
+    } catch (err) {
+      speechListening = false;
+      if (statusEl) {
+        statusEl.textContent = "Couldn't start voice input.";
+        statusEl.className = "status-error";
+      }
+    }
+  }
+
+  function wireMicButton() {
+    const micBtn = document.getElementById("new-idea-mic-btn");
+    const noteInput = document.getElementById("new-idea-note");
+    const statusEl = document.getElementById("new-idea-mic-status");
+    if (!micBtn || !noteInput) return;
+
+    micBtn.addEventListener("click", () => {
+      if (speechListening) {
+        cleanupSpeech();
+        resetMicButtonUi(micBtn, statusEl);
+      } else {
+        startListening(noteInput, micBtn, statusEl);
+      }
+    });
+  }
+
   // --- helpers ---
 
   function stripCodeFences(text) {
@@ -627,6 +740,7 @@ const Pipeline = (() => {
   function closePanel() {
     document.getElementById("idea-panel-overlay").hidden = true;
     currentIdeaId = null;
+    cleanupSpeech();
   }
 
   function openNewIdeaPanel() {
@@ -636,12 +750,19 @@ const Pipeline = (() => {
   }
 
   function renderNewIdeaForm() {
+    cleanupSpeech(); // in case a previous open of this form left it listening
+    const micSupported = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+
     const container = document.getElementById("panel-content");
     container.innerHTML = `
       <h2>New idea</h2>
       <div class="field">
         <label for="new-idea-note">What's the idea?</label>
-        <textarea id="new-idea-note" rows="5" placeholder="Paste a raw note, a rough story, anything..."></textarea>
+        <div class="new-idea-note-row">
+          <textarea id="new-idea-note" rows="5" placeholder="Paste a raw note, a rough story, anything..."></textarea>
+          ${micSupported ? '<button type="button" id="new-idea-mic-btn" class="mic-btn" aria-label="Start voice input" title="Speak your idea">🎤</button>' : ""}
+        </div>
+        ${micSupported ? '<p id="new-idea-mic-status" role="status" aria-live="polite"></p>' : ""}
       </div>
       <div class="field">
         <label for="new-idea-angle">Your own angle (optional)</label>
@@ -655,9 +776,11 @@ const Pipeline = (() => {
     `;
     document.getElementById("new-idea-cancel-btn").addEventListener("click", closePanel);
     document.getElementById("new-idea-submit-btn").addEventListener("click", createIdea);
+    if (micSupported) wireMicButton();
   }
 
   async function createIdea() {
+    cleanupSpeech();
     const noteInput = document.getElementById("new-idea-note");
     const angleInput = document.getElementById("new-idea-angle");
     const errorEl = document.getElementById("new-idea-error");
@@ -684,6 +807,7 @@ const Pipeline = (() => {
       angleSource: null,
       cta: null,
       draft: null,
+      lastAgentDraft: null,
       postedText: null,
       conversationHistory: [{ role: "user", content: rawNote }],
       datePosted: null,

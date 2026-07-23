@@ -74,13 +74,16 @@ const Learning = (() => {
     }
   }
 
-  async function extractAndSaveGuidelines(idea, postedText) {
+  // beforeText/afterText are deliberately generic -- callers decide what
+  // "before" means (the drafted post for Mark Posted, or lastAgentDraft for
+  // a manual mid-drafting edit).
+  async function extractAndSaveGuidelines(beforeText, afterText) {
     try {
       const response = await Api.sendMessage({
         apiKey: AppStorage.getApiKey(),
         model: AppStorage.getModelId(),
         system: buildExtractionSystemPrompt(),
-        messages: [{ role: "user", content: buildExtractionUserMessage(idea.draft || "", postedText) }],
+        messages: [{ role: "user", content: buildExtractionUserMessage(beforeText, afterText) }],
         maxTokens: 1024,
       });
 
@@ -96,13 +99,26 @@ const Learning = (() => {
       }
       return { savedCount: patterns.length, error: null };
     } catch (err) {
-      // Best-effort enrichment: the idea is already safely marked Posted
-      // by the time this runs, so a failure here (auth, network, a
-      // malformed response) shouldn't block or reauth-prompt the user --
-      // just skip it and let the caller show a friendly, non-blocking note.
+      // Best-effort enrichment: whatever state change (Mark Posted, a saved
+      // manual edit) triggered this has already completed by the time this
+      // runs, so a failure here (auth, network, a malformed response)
+      // shouldn't block or reauth-prompt the user -- just skip it and let
+      // the caller show a friendly, non-blocking note.
       return { savedCount: 0, error: err.message };
     }
   }
 
-  return { isSubstantiveChange, extractAndSaveGuidelines };
+  // Shared by the Mark Posted flow and manual mid-drafting/Ready-to-Post
+  // edits: run the cheap local diff first, only pay for an API call when it
+  // actually looks like something changed. `ran: false` tells the caller no
+  // extraction happened (nothing to report, nothing failed).
+  async function checkAndExtractIfSubstantive(beforeText, afterText) {
+    if (!isSubstantiveChange(beforeText, afterText)) {
+      return { ran: false, savedCount: 0, error: null };
+    }
+    const { savedCount, error } = await extractAndSaveGuidelines(beforeText, afterText);
+    return { ran: true, savedCount, error };
+  }
+
+  return { isSubstantiveChange, extractAndSaveGuidelines, checkAndExtractIfSubstantive };
 })();

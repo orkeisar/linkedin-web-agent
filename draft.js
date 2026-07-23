@@ -38,9 +38,30 @@ const Draft = (() => {
     const sendBtn = document.querySelector("#draft-chat-form button[type='submit']");
     const input = document.getElementById("draft-chat-input");
     const readyBtn = document.getElementById("draft-ready-btn");
+    const editSaveBtn = document.getElementById("draft-edit-save-btn");
     if (sendBtn) sendBtn.disabled = busy;
     if (input) input.disabled = busy;
     if (readyBtn) readyBtn.disabled = busy;
+    if (editSaveBtn) editSaveBtn.disabled = busy;
+  }
+
+  // Anthropic's Messages API only accepts "user"/"assistant" roles and
+  // requires strict alternation. conversationHistory can also hold
+  // "system" notes (e.g. "the user manually edited the draft") for the UI's
+  // benefit -- fold those into the surrounding user turn when building the
+  // actual API payload, same merge logic as pushUserTurn.
+  function buildApiMessages(conversationHistory) {
+    const messages = [];
+    conversationHistory.forEach((turn) => {
+      const role = turn.role === "assistant" ? "assistant" : "user";
+      const last = messages[messages.length - 1];
+      if (last && last.role === role) {
+        last.content = `${last.content}\n\n${turn.content}`;
+      } else {
+        messages.push({ role, content: turn.content });
+      }
+    });
+    return messages;
   }
 
   function cleanDraftText(text) {
@@ -152,6 +173,75 @@ const Draft = (() => {
     return parts.join("\n");
   }
 
+  // --- manual editing (Drafting + Ready to Post) ---
+
+  // Shared by both the Drafting-panel and Ready-to-Post-panel "Save edit"
+  // buttons. lastAgentDraft is a sticky baseline: the first manual edit
+  // after an agent draft snapshots the pre-edit text into it (if not
+  // already set), and it's only ever moved forward again once an edit is
+  // judged substantive -- so a string of small edits keeps accumulating
+  // against the same baseline until they cross the threshold together,
+  // rather than each being diffed in isolation and mostly ignored.
+  async function handleManualEdit(ideaId, newText, { appendChatNote = false } = {}) {
+    const idea = await AppStorage.getIdea(ideaId);
+    if (!idea) return null;
+
+    const previousDraft = idea.draft || "";
+    if (newText === previousDraft) {
+      return { idea, noChange: true, ran: false, savedCount: 0, error: null };
+    }
+
+    const baseline = idea.lastAgentDraft != null ? idea.lastAgentDraft : previousDraft;
+    if (idea.lastAgentDraft == null) {
+      idea.lastAgentDraft = previousDraft;
+    }
+    idea.draft = newText;
+    if (appendChatNote) {
+      idea.conversationHistory.push({
+        role: "system",
+        content: `The user manually edited the draft outside this chat. The draft now reads exactly as follows -- treat this as current, not what you last wrote:\n\n${newText}`,
+      });
+    }
+    await AppStorage.saveIdea(idea);
+    Pipeline.renderBoard();
+
+    const { ran, savedCount, error } = await Learning.checkAndExtractIfSubstantive(baseline, newText);
+
+    if (ran && !error) {
+      // Re-fetch fresh: the extraction call was async, so re-read before
+      // writing rather than reusing the `idea` snapshot from above.
+      const fresh = await AppStorage.getIdea(ideaId);
+      if (fresh) {
+        fresh.lastAgentDraft = newText;
+        await AppStorage.saveIdea(fresh);
+      }
+    }
+
+    return { idea, noChange: false, ran, savedCount, error };
+  }
+
+  function renderManualEditStatus(statusEl, result) {
+    if (!statusEl) return;
+    if (!result) {
+      statusEl.textContent = "Couldn't save — this idea may have been removed.";
+      statusEl.className = "status-error";
+    } else if (result.noChange) {
+      statusEl.textContent = "";
+      statusEl.className = "";
+    } else if (result.error) {
+      statusEl.textContent = `Saved. Couldn't check for a new writing pattern this time (${result.error}).`;
+      statusEl.className = "status-error";
+    } else if (result.ran) {
+      statusEl.textContent = result.savedCount
+        ? `Saved. Learned ${result.savedCount} new pattern${result.savedCount === 1 ? "" : "s"}.`
+        : "Saved. Nothing concrete enough to learn from this edit.";
+      statusEl.className = "status-success";
+    } else {
+      statusEl.textContent = "Saved.";
+      statusEl.className = "status-success";
+    }
+  }
+
   // --- stage runner (shared by the first draft and every revision) ---
 
   async function runDraft(ideaId) {
@@ -160,7 +250,7 @@ const Draft = (() => {
 
     try {
       const system = await buildDraftingSystemPrompt(idea);
-      const messages = idea.conversationHistory.map((t) => ({ role: t.role, content: t.content }));
+      const messages = buildApiMessages(idea.conversationHistory);
 
       const response = await Api.sendMessage({
         apiKey: AppStorage.getApiKey(),
@@ -180,6 +270,10 @@ const Draft = (() => {
       const current = await AppStorage.getIdea(ideaId);
       if (!current) return;
       current.draft = draftText;
+      // A fresh agent draft supersedes any prior manual-edit baseline -- the
+      // next manual edit should snapshot against *this* draft, not a
+      // now-stale one from before this revision.
+      current.lastAgentDraft = null;
       current.conversationHistory.push({ role: "assistant", content: draftText });
       await AppStorage.saveIdea(current);
       Pipeline.renderBoard();
@@ -230,8 +324,12 @@ const Draft = (() => {
       <h2>Drafting</h2>
       <p class="warning" id="draft-error" ${options.error ? "" : "hidden"}></p>
       <div class="field">
-        <label>Current draft</label>
-        <div class="idea-raw-note" id="draft-text-display"></div>
+        <label for="draft-edit-textarea">Current draft — edit directly, or use the chat below</label>
+        <textarea id="draft-edit-textarea" rows="10"></textarea>
+        <div class="step-actions">
+          <button type="button" id="draft-edit-save-btn" class="btn-secondary">Save edit</button>
+        </div>
+        <p id="draft-edit-status" role="status" aria-live="polite"></p>
       </div>
       <div id="draft-chat-log" class="chat-log"></div>
       <form id="draft-chat-form" class="chat-form">
@@ -247,7 +345,7 @@ const Draft = (() => {
     if (options.error) {
       document.getElementById("draft-error").textContent = options.error;
     }
-    document.getElementById("draft-text-display").textContent = idea.draft || "";
+    document.getElementById("draft-edit-textarea").value = idea.draft || "";
 
     renderChatLogInto("draft-chat-log", idea.conversationHistory);
     document.getElementById("draft-chat-form").addEventListener("submit", (event) => handleRevisionSubmit(event, idea.id));
@@ -257,7 +355,33 @@ const Draft = (() => {
         document.getElementById("draft-chat-form").requestSubmit();
       }
     });
+    document.getElementById("draft-edit-save-btn").addEventListener("click", () => handleDraftEditSave(idea.id));
     document.getElementById("draft-ready-btn").addEventListener("click", () => handleMarkReadyToPost(idea.id));
+  }
+
+  async function handleDraftEditSave(ideaId) {
+    const textarea = document.getElementById("draft-edit-textarea");
+    const statusEl = document.getElementById("draft-edit-status");
+    const newText = textarea.value.trim();
+
+    // Also blocks the chat form for the duration: a concurrent revision
+    // could otherwise finish its own draft/lastAgentDraft write mid-way
+    // through this edit's (slower) extraction call and have it clobbered.
+    setDraftPanelBusy(true);
+    if (statusEl) {
+      statusEl.textContent = "Saving…";
+      statusEl.className = "status-pending";
+    }
+
+    const result = await handleManualEdit(ideaId, newText, { appendChatNote: true });
+
+    setDraftPanelBusy(false);
+    renderManualEditStatus(statusEl, result);
+
+    if (result && !result.noChange && Pipeline.getCurrentIdeaId() === ideaId) {
+      const fresh = await AppStorage.getIdea(ideaId);
+      if (fresh) renderChatLogInto("draft-chat-log", fresh.conversationHistory);
+    }
   }
 
   async function handleRevisionSubmit(event, ideaId) {
@@ -283,6 +407,16 @@ const Draft = (() => {
   async function handleMarkReadyToPost(ideaId) {
     const readyBtn = document.getElementById("draft-ready-btn");
     if (readyBtn) readyBtn.disabled = true;
+
+    // Don't lose an edit sitting in the textarea that was never explicitly
+    // saved before the user moved on.
+    const editTextarea = document.getElementById("draft-edit-textarea");
+    if (editTextarea) {
+      const pending = editTextarea.value.trim();
+      const latest = (await AppStorage.getIdea(ideaId))?.draft || "";
+      if (pending !== latest) await handleManualEdit(ideaId, pending, { appendChatNote: true });
+    }
+
     const idea = await AppStorage.getIdea(ideaId);
     if (!idea) return;
     idea.status = "Ready to Post";
@@ -298,8 +432,12 @@ const Draft = (() => {
     container.innerHTML = `
       <h2>Ready to post</h2>
       <div class="field">
-        <label>Final draft</label>
-        <div class="idea-raw-note" id="ready-text-display"></div>
+        <label for="ready-edit-textarea">Final draft — edit directly if needed</label>
+        <textarea id="ready-edit-textarea" rows="10"></textarea>
+        <div class="step-actions">
+          <button type="button" id="ready-edit-save-btn" class="btn-secondary">Save edit</button>
+        </div>
+        <p id="ready-edit-status" role="status" aria-live="polite"></p>
       </div>
       <button type="button" id="ready-copy-btn" class="btn-secondary">Copy to clipboard</button>
       <p id="ready-copy-status" role="status" aria-live="polite"></p>
@@ -307,12 +445,14 @@ const Draft = (() => {
         <button type="button" id="ready-mark-posted-btn" class="btn-primary">Mark Posted</button>
       </div>
     `;
-    document.getElementById("ready-text-display").textContent = idea.draft || "";
+    document.getElementById("ready-edit-textarea").value = idea.draft || "";
+
+    document.getElementById("ready-edit-save-btn").addEventListener("click", () => handleReadyEditSave(idea.id));
 
     document.getElementById("ready-copy-btn").addEventListener("click", async () => {
       const statusEl = document.getElementById("ready-copy-status");
       try {
-        await navigator.clipboard.writeText(idea.draft || "");
+        await navigator.clipboard.writeText(document.getElementById("ready-edit-textarea").value || "");
         statusEl.textContent = "Copied.";
         statusEl.className = "status-success";
       } catch (err) {
@@ -321,7 +461,44 @@ const Draft = (() => {
       }
     });
 
-    document.getElementById("ready-mark-posted-btn").addEventListener("click", () => renderMarkPostedConfirm(idea));
+    document.getElementById("ready-mark-posted-btn").addEventListener("click", () => handleMarkPostedClick(idea.id));
+  }
+
+  async function handleReadyEditSave(ideaId) {
+    const textarea = document.getElementById("ready-edit-textarea");
+    const saveBtn = document.getElementById("ready-edit-save-btn");
+    const statusEl = document.getElementById("ready-edit-status");
+    const newText = textarea.value.trim();
+
+    if (saveBtn) saveBtn.disabled = true;
+    if (statusEl) {
+      statusEl.textContent = "Saving…";
+      statusEl.className = "status-pending";
+    }
+
+    const result = await handleManualEdit(ideaId, newText, { appendChatNote: false });
+
+    if (saveBtn) saveBtn.disabled = false;
+    renderManualEditStatus(statusEl, result);
+  }
+
+  async function handleMarkPostedClick(ideaId) {
+    const btn = document.getElementById("ready-mark-posted-btn");
+    if (btn) btn.disabled = true;
+
+    // Same reasoning as handleMarkReadyToPost: don't silently drop an edit
+    // the user never explicitly saved before moving on.
+    const textarea = document.getElementById("ready-edit-textarea");
+    if (textarea) {
+      const pending = textarea.value.trim();
+      const latest = (await AppStorage.getIdea(ideaId))?.draft || "";
+      if (pending !== latest) await handleManualEdit(ideaId, pending, { appendChatNote: false });
+    }
+
+    const idea = await AppStorage.getIdea(ideaId);
+    if (btn) btn.disabled = false;
+    if (!idea) return;
+    renderMarkPostedConfirm(idea);
   }
 
   // --- Mark Posted confirmation (the learning-loop entry point) ---
@@ -387,18 +564,19 @@ const Draft = (() => {
     Pipeline.renderBoard();
     const finalText = idea.postedText;
 
-    const shouldExtract = !!pastedText && Learning.isSubstantiveChange(idea.draft || "", finalText);
-    if (!shouldExtract) {
-      Pipeline.closePanel();
-      return;
-    }
-
     if (statusEl) {
       statusEl.textContent = "Comparing what changed to sharpen future drafts…";
       statusEl.className = "status-pending";
     }
 
-    const { savedCount, error: extractionError } = await Learning.extractAndSaveGuidelines(idea, finalText);
+    // Harmless when pastedText was empty/omitted: finalText then equals
+    // idea.draft exactly, so the diff is a no-op and this resolves
+    // instantly with ran: false, no API call made.
+    const { ran, savedCount, error: extractionError } = await Learning.checkAndExtractIfSubstantive(idea.draft || "", finalText);
+    if (!ran) {
+      Pipeline.closePanel();
+      return;
+    }
 
     if (statusEl) {
       if (extractionError) {
