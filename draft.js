@@ -45,6 +45,18 @@ const Draft = (() => {
     if (editSaveBtn) editSaveBtn.disabled = busy;
   }
 
+  // Mirrors setDraftPanelBusy: without this, a second manual-edit save
+  // (or Mark Posted) could fire while an earlier save's extraction call is
+  // still in flight, and the two lastAgentDraft writes could land out of
+  // network-completion order, leaving the baseline pointing at a
+  // superseded draft.
+  function setReadyPanelBusy(busy) {
+    const saveBtn = document.getElementById("ready-edit-save-btn");
+    const markPostedBtn = document.getElementById("ready-mark-posted-btn");
+    if (saveBtn) saveBtn.disabled = busy;
+    if (markPostedBtn) markPostedBtn.disabled = busy;
+  }
+
   // Anthropic's Messages API only accepts "user"/"assistant" roles and
   // requires strict alternation. conversationHistory can also hold
   // "system" notes (e.g. "the user manually edited the draft") for the UI's
@@ -390,6 +402,11 @@ const Draft = (() => {
     const text = input.value.trim();
     if (!text) return;
 
+    // Disable before any async work starts (not just before the API call)
+    // so a concurrent Save-edit can't race this function's own
+    // read-modify-write of conversationHistory/draft.
+    setDraftPanelBusy(true);
+
     const idea = await AppStorage.getIdea(ideaId);
     pushUserTurn(idea, text);
     input.value = "";
@@ -399,7 +416,6 @@ const Draft = (() => {
     const statusEl = document.getElementById("draft-status");
     statusEl.textContent = "Revising…";
     statusEl.className = "status-pending";
-    setDraftPanelBusy(true);
 
     await runDraft(ideaId);
   }
@@ -466,11 +482,10 @@ const Draft = (() => {
 
   async function handleReadyEditSave(ideaId) {
     const textarea = document.getElementById("ready-edit-textarea");
-    const saveBtn = document.getElementById("ready-edit-save-btn");
     const statusEl = document.getElementById("ready-edit-status");
     const newText = textarea.value.trim();
 
-    if (saveBtn) saveBtn.disabled = true;
+    setReadyPanelBusy(true);
     if (statusEl) {
       statusEl.textContent = "Saving…";
       statusEl.className = "status-pending";
@@ -478,13 +493,12 @@ const Draft = (() => {
 
     const result = await handleManualEdit(ideaId, newText, { appendChatNote: false });
 
-    if (saveBtn) saveBtn.disabled = false;
+    setReadyPanelBusy(false);
     renderManualEditStatus(statusEl, result);
   }
 
   async function handleMarkPostedClick(ideaId) {
-    const btn = document.getElementById("ready-mark-posted-btn");
-    if (btn) btn.disabled = true;
+    setReadyPanelBusy(true);
 
     // Same reasoning as handleMarkReadyToPost: don't silently drop an edit
     // the user never explicitly saved before moving on.
@@ -496,7 +510,7 @@ const Draft = (() => {
     }
 
     const idea = await AppStorage.getIdea(ideaId);
-    if (btn) btn.disabled = false;
+    setReadyPanelBusy(false);
     if (!idea) return;
     renderMarkPostedConfirm(idea);
   }
